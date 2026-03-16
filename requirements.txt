@@ -1,0 +1,5 @@
+aidefense
+langchain>=1.0.0
+langgraph
+langchain-openai
+python-dotenv

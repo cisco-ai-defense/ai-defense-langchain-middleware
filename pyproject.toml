@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aidefense-langchain"
+version = "0.1.0"
+description = "Cisco AI Defense middleware for LangChain agents"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "aidefense",
+    "langchain>=1.0.0",
+    "langgraph",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+examples = [
+    "langchain-openai",
+    "python-dotenv",
+]
+
+[tool.setuptools.packages.find]
+include = ["aidefense_langchain*"]
