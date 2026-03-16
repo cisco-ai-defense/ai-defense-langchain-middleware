@@ -25,8 +25,9 @@ both LLM and tool inspection in a single middleware stack.
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain.messages import ToolMessage
@@ -36,6 +37,8 @@ from langgraph.types import Command
 from aidefense.config import Config
 from aidefense.runtime import MCPInspectionClient
 from aidefense.runtime.mcp_models import MCPInspectResponse
+
+from ._env import direct_kwargs_from_env, normalize_region
 
 logger = logging.getLogger("aidefense.langchain.tools")
 
@@ -116,8 +119,18 @@ class AIDefenseToolMiddleware(AgentMiddleware):
         self.inspect_responses = inspect_responses
         self.on_violation = on_violation
 
-        config = Config(region=region, timeout=timeout)
+        config = Config(region=normalize_region(region), timeout=timeout)
         self.client = MCPInspectionClient(api_key=api_key, config=config)
+
+    @classmethod
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        **kwargs: Any,
+    ) -> "AIDefenseToolMiddleware":
+        values = direct_kwargs_from_env(env)
+        values.update(kwargs)
+        return cls(**values)
 
     # -- LangChain hook ----------------------------------------------------
 
@@ -139,7 +152,12 @@ class AIDefenseToolMiddleware(AgentMiddleware):
         if self.inspect_requests:
             result = self._safe_inspect_tool_call(tool_name, tool_args)
             if result is not None and not self._is_safe(result):
-                blocked = self._handle_violation(result, tool_name, "request")
+                blocked = self._handle_violation(
+                    result,
+                    request,
+                    tool_name,
+                    "request",
+                )
                 if blocked is not None:
                     return blocked
 
@@ -155,7 +173,63 @@ class AIDefenseToolMiddleware(AgentMiddleware):
                 )
                 if result is not None and not self._is_safe(result):
                     blocked = self._handle_violation(
-                        result, tool_name, "response"
+                        result,
+                        request,
+                        tool_name,
+                        "response",
+                    )
+                    if blocked is not None:
+                        return blocked
+
+        return tool_result
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[
+            [ToolCallRequest], Any
+        ],
+    ) -> Union[ToolMessage, Command]:
+        """Wrap each tool call with pre/post inspection (async)."""
+        if self.mode == "off":
+            return await handler(request)
+
+        tool_name = request.tool_call.get("name", "unknown")
+        tool_args = request.tool_call.get("args", {})
+
+        if self.inspect_requests:
+            result = await asyncio.to_thread(
+                self._safe_inspect_tool_call,
+                tool_name,
+                tool_args,
+            )
+            if result is not None and not self._is_safe(result):
+                blocked = self._handle_violation(
+                    result,
+                    request,
+                    tool_name,
+                    "request",
+                )
+                if blocked is not None:
+                    return blocked
+
+        tool_result = await handler(request)
+
+        if self.inspect_responses:
+            result_data = self._extract_result_data(tool_result)
+            if result_data is not None:
+                result = await asyncio.to_thread(
+                    self._safe_inspect_response,
+                    tool_name,
+                    tool_args,
+                    result_data,
+                )
+                if result is not None and not self._is_safe(result):
+                    blocked = self._handle_violation(
+                        result,
+                        request,
+                        tool_name,
+                        "response",
                     )
                     if blocked is not None:
                         return blocked
@@ -218,6 +292,7 @@ class AIDefenseToolMiddleware(AgentMiddleware):
     def _handle_violation(
         self,
         result: MCPInspectResponse,
+        request: ToolCallRequest,
         tool_name: str,
         direction: str,
     ) -> Optional[ToolMessage]:
@@ -258,7 +333,7 @@ class AIDefenseToolMiddleware(AgentMiddleware):
                     f"Tool call '{tool_name}' was blocked by Cisco AI Defense "
                     f"({direction} policy violation)."
                 ),
-                tool_call_id=None,
+                tool_call_id=_tool_call_id(request, tool_name),
             )
 
         # monitor mode
@@ -280,3 +355,10 @@ class AIDefenseToolMiddleware(AgentMiddleware):
         if isinstance(tool_result, Command):
             return None
         return None
+
+
+def _tool_call_id(request: ToolCallRequest, tool_name: str) -> str:
+    tool_call_id = request.tool_call.get("id")
+    if tool_call_id:
+        return str(tool_call_id)
+    return f"blocked-{tool_name}"

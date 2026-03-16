@@ -25,13 +25,11 @@ application already uses ``agentsec.protect()``.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from langchain.agents.middleware import (
     AgentMiddleware,
     AgentState,
-    ModelRequest,
-    ModelResponse,
     hook_config,
 )
 from langchain.messages import AIMessage
@@ -39,6 +37,8 @@ from langgraph.runtime import Runtime
 
 from aidefense.runtime.agentsec.decision import Decision
 from aidefense.runtime.agentsec.inspectors.api_llm import LLMInspector
+
+from ._env import agentsec_kwargs_from_env
 
 logger = logging.getLogger("aidefense.langchain.agentsec")
 
@@ -176,6 +176,16 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
             retry_backoff=retry_backoff,
         )
 
+    @classmethod
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        **kwargs: Any,
+    ) -> "AIDefenseAgentsecMiddleware":
+        values = agentsec_kwargs_from_env(env)
+        values.update(kwargs)
+        return cls(**values)
+
     # -- LangChain hooks ---------------------------------------------------
 
     @hook_config(can_jump_to=["end"])
@@ -191,6 +201,18 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         return self._process_decision(decision, "input")
 
     @hook_config(can_jump_to=["end"])
+    async def abefore_model(
+        self, state: AgentState, runtime: Runtime,
+    ) -> dict[str, Any] | None:
+        """Inspect input messages before they reach the LLM (async)."""
+        if self.mode == "off":
+            return None
+
+        messages = _langchain_messages_to_dicts(state["messages"])
+        decision = await self.inspector.ainspect_conversation(messages, self._metadata)
+        return self._process_decision(decision, "input")
+
+    @hook_config(can_jump_to=["end"])
     def after_model(
         self, state: AgentState, runtime: Runtime,
     ) -> dict[str, Any] | None:
@@ -200,6 +222,18 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
 
         messages = _langchain_messages_to_dicts(state["messages"])
         decision = self.inspector.inspect_conversation(messages, self._metadata)
+        return self._process_decision(decision, "output")
+
+    @hook_config(can_jump_to=["end"])
+    async def aafter_model(
+        self, state: AgentState, runtime: Runtime,
+    ) -> dict[str, Any] | None:
+        """Inspect the LLM response after it is received (async)."""
+        if self.mode == "off":
+            return None
+
+        messages = _langchain_messages_to_dicts(state["messages"])
+        decision = await self.inspector.ainspect_conversation(messages, self._metadata)
         return self._process_decision(decision, "output")
 
     # -- Internal helpers --------------------------------------------------

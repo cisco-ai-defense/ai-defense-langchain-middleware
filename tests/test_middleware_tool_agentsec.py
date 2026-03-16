@@ -1,7 +1,8 @@
 """Tests for AIDefenseAgentsecToolMiddleware (MCPInspector-based)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+from langchain.messages import ToolMessage
 
 from aidefense_langchain.middleware_tool_agentsec import (
     AIDefenseAgentsecToolMiddleware,
@@ -38,15 +39,12 @@ def _make_monitor_decision():
 
 def _make_tool_request(name="my_tool", args=None):
     req = MagicMock()
-    req.tool_call = {"name": name, "args": args or {}, "metadata": {}}
+    req.tool_call = {"id": f"{name}-id", "name": name, "args": args or {}, "metadata": {}}
     return req
 
 
 def _make_tool_message(content="tool result"):
-    msg = MagicMock()
-    msg.content = content
-    type(msg).__name__ = "ToolMessage"
-    return msg
+    return ToolMessage(content=content, tool_call_id="tool-call-1")
 
 
 class TestAIDefenseAgentsecToolMiddleware:
@@ -148,3 +146,34 @@ class TestAIDefenseAgentsecToolMiddleware:
         mw = AIDefenseAgentsecToolMiddleware(mode="enforce")
         mw.close()
         mock_inspector.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_awrap_tool_call_uses_async_inspector(self, mock_inspector):
+        mock_inspector.ainspect_request = AsyncMock(return_value=_make_allow_decision())
+        mock_inspector.ainspect_response = AsyncMock(return_value=_make_allow_decision())
+
+        mw = AIDefenseAgentsecToolMiddleware(mode="enforce")
+        handler = AsyncMock(return_value=_make_tool_message())
+        req = _make_tool_request()
+
+        result = await mw.awrap_tool_call(req, handler)
+
+        assert result.content == "tool result"
+        mock_inspector.ainspect_request.assert_awaited_once()
+
+    def test_from_env_reads_agentsec_tool_settings(self, mock_inspector):
+        with patch(
+            "aidefense_langchain.middleware_tool_agentsec.MCPInspector"
+        ) as MockInspector:
+            AIDefenseAgentsecToolMiddleware.from_env(
+                {
+                    "AIDEFENSE_API_KEY": "test-key",
+                    "AIDEFENSE_ENDPOINT": "https://example.com",
+                    "AIDEFENSE_RETRY_BACKOFF": "1.5",
+                }
+            )
+
+        kwargs = MockInspector.call_args.kwargs
+        assert kwargs["api_key"] == "test-key"
+        assert kwargs["endpoint"] == "https://example.com"
+        assert kwargs["retry_backoff"] == 1.5

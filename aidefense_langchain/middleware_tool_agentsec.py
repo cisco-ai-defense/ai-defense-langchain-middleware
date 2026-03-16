@@ -23,7 +23,7 @@ fail-open/closed semantics, and configuration from agentsec global state.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain.messages import ToolMessage
@@ -31,6 +31,8 @@ from langchain.tools.tool_node import ToolCallRequest
 from langgraph.types import Command
 
 from aidefense.runtime.agentsec.inspectors.api_mcp import MCPInspector
+
+from ._env import agentsec_kwargs_from_env
 
 logger = logging.getLogger("aidefense.langchain.tools.agentsec")
 
@@ -45,7 +47,7 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
     - Fail-open / fail-closed semantics
     - ``Decision`` objects (``allow`` / ``block`` / ``sanitize`` / ``monitor_only``)
     - Can inherit configuration from ``agentsec.protect()`` global state
-    - Async support via ``asyncio.to_thread()``
+    - Native async inspection support
 
     Parameters
     ----------
@@ -113,6 +115,16 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
 
         self.inspector = MCPInspector(**kwargs)
 
+    @classmethod
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        **kwargs: Any,
+    ) -> "AIDefenseAgentsecToolMiddleware":
+        values = agentsec_kwargs_from_env(env)
+        values.update(kwargs)
+        return cls(**values)
+
     # -- LangChain hook ----------------------------------------------------
 
     def wrap_tool_call(
@@ -138,7 +150,12 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
                 metadata=metadata,
                 method="tools/call",
             )
-            blocked = self._process_decision(decision, tool_name, "request")
+            blocked = self._process_decision(
+                decision,
+                request,
+                tool_name,
+                "request",
+            )
             if blocked is not None:
                 return blocked
 
@@ -157,7 +174,64 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
                     method="tools/call",
                 )
                 blocked = self._process_decision(
-                    decision, tool_name, "response"
+                    decision,
+                    request,
+                    tool_name,
+                    "response",
+                )
+                if blocked is not None:
+                    return blocked
+
+        return tool_result
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[
+            [ToolCallRequest], Any
+        ],
+    ) -> Union[ToolMessage, Command]:
+        """Wrap each tool call with pre/post inspection via MCPInspector (async)."""
+        if self.mode == "off":
+            return await handler(request)
+
+        tool_name = request.tool_call.get("name", "unknown")
+        tool_args = request.tool_call.get("args", {})
+        metadata = request.tool_call.get("metadata", {})
+
+        if self.inspect_requests:
+            decision = await self.inspector.ainspect_request(
+                tool_name=tool_name,
+                arguments=tool_args,
+                metadata=metadata,
+                method="tools/call",
+            )
+            blocked = self._process_decision(
+                decision,
+                request,
+                tool_name,
+                "request",
+            )
+            if blocked is not None:
+                return blocked
+
+        tool_result = await handler(request)
+
+        if self.inspect_responses:
+            result_data = self._extract_result_data(tool_result)
+            if result_data is not None:
+                decision = await self.inspector.ainspect_response(
+                    tool_name=tool_name,
+                    arguments=tool_args,
+                    result=result_data,
+                    metadata=metadata,
+                    method="tools/call",
+                )
+                blocked = self._process_decision(
+                    decision,
+                    request,
+                    tool_name,
+                    "response",
                 )
                 if blocked is not None:
                     return blocked
@@ -167,7 +241,11 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
     # -- Internal helpers --------------------------------------------------
 
     def _process_decision(
-        self, decision: Any, tool_name: str, direction: str,
+        self,
+        decision: Any,
+        request: ToolCallRequest,
+        tool_name: str,
+        direction: str,
     ) -> Optional[ToolMessage]:
         """Map a Decision to enforcement or monitoring."""
         action = getattr(decision, "action", "allow")
@@ -195,7 +273,7 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
                     f"Tool call '{tool_name}' was blocked by Cisco AI Defense "
                     f"({direction} policy violation)."
                 ),
-                tool_call_id=None,
+                tool_call_id=_tool_call_id(request, tool_name),
             )
 
         logger.warning(f"{log_msg} — monitor only, allowing tool call")
@@ -218,3 +296,10 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
     def close(self) -> None:
         """Release inspector resources."""
         self.inspector.close()
+
+
+def _tool_call_id(request: ToolCallRequest, tool_name: str) -> str:
+    tool_call_id = request.tool_call.get("id")
+    if tool_call_id:
+        return str(tool_call_id)
+    return f"blocked-{tool_name}"

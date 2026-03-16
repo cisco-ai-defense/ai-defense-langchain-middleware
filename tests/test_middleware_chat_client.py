@@ -124,6 +124,30 @@ class TestAIDefenseMiddleware:
         assert result is not None
         assert result["jump_to"] == "end"
 
+    @pytest.mark.asyncio
+    async def test_abefore_model_uses_async_hook(self):
+        mw = self._make_middleware(mode="enforce")
+        mw.client.inspect_conversation.return_value = self._safe_response()
+
+        result = await mw.abefore_model(self._fake_state(), MagicMock())
+
+        assert result is None
+        mw.client.inspect_conversation.assert_called_once()
+
+    def test_from_env_normalizes_short_region_names(self):
+        with patch("aidefense_langchain.middleware_chat_client.ChatInspectionClient"):
+            from aidefense_langchain import AIDefenseMiddleware
+
+            mw = AIDefenseMiddleware.from_env(
+                {
+                    "AIDEFENSE_API_KEY": "test-key",
+                    "AIDEFENSE_REGION": "us",
+                    "AIDEFENSE_MODE": "monitor",
+                }
+            )
+
+        assert mw.mode == "monitor"
+
     # -- validation --------------------------------------------------------
 
     def test_invalid_mode_raises(self):

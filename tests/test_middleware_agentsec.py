@@ -5,7 +5,7 @@ These tests mock the LLMInspector to avoid real API calls.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -104,6 +104,33 @@ class TestAIDefenseAgentsecMiddleware:
         result = mw.after_model(state, MagicMock())
         assert result is not None
         assert result["jump_to"] == "end"
+
+    @pytest.mark.asyncio
+    async def test_abefore_model_uses_async_inspector(self):
+        mw = self._make_middleware(mode="enforce")
+        mw.inspector.ainspect_conversation = AsyncMock(return_value=Decision.allow())
+
+        result = await mw.abefore_model(self._fake_state(), MagicMock())
+
+        assert result is None
+        mw.inspector.ainspect_conversation.assert_awaited_once()
+
+    def test_from_env_reads_agentsec_endpoint(self):
+        with patch("aidefense_langchain.middleware_agentsec.LLMInspector") as MockInspector:
+            from aidefense_langchain import AIDefenseAgentsecMiddleware
+
+            AIDefenseAgentsecMiddleware.from_env(
+                {
+                    "AIDEFENSE_API_KEY": "test-key",
+                    "AIDEFENSE_ENDPOINT": "https://example.com",
+                    "AIDEFENSE_RETRY_TOTAL": "3",
+                }
+            )
+
+        kwargs = MockInspector.call_args.kwargs
+        assert kwargs["api_key"] == "test-key"
+        assert kwargs["endpoint"] == "https://example.com"
+        assert kwargs["retry_total"] == 3
 
     # -- validation --------------------------------------------------------
 

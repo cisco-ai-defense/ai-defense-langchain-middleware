@@ -26,6 +26,16 @@ cp .env.example .env   # fill in your API keys
 python examples/01_chat_client_enforce.py
 ```
 
+All four middleware classes also provide `from_env()` helpers for the common
+example env vars, and the middleware hooks now support both sync and async
+agent execution.
+
+```python
+from aidefense_langchain import AIDefenseMiddleware
+
+middleware = AIDefenseMiddleware.from_env()
+```
+
 ## Approach 1: `AIDefenseMiddleware` (Recommended)
 
 Uses `ChatInspectionClient` directly. Self-contained configuration, no global state, no monkey-patching.
@@ -63,6 +73,9 @@ result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})
 | `user` | `str` | `None` | User identity for audit |
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(InspectResponse, direction) -> None` callback |
+
+Short region aliases such as `us`, `eu`, and `apj` are accepted and normalized
+to the SDK's region names automatically.
 
 ### How it works
 
@@ -143,6 +156,11 @@ agent = create_agent(
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(Decision, direction) -> None` callback |
 
+`AIDefenseAgentsecMiddleware.from_env()` reads `AIDEFENSE_API_KEY`,
+`AIDEFENSE_ENDPOINT`, `AIDEFENSE_MODE`, `AIDEFENSE_FAIL_OPEN`,
+`AIDEFENSE_TIMEOUT_MS`, `AIDEFENSE_RETRY_TOTAL`, and
+`AIDEFENSE_RETRY_BACKOFF`.
+
 ## Tool / MCP Inspection
 
 ### `AIDefenseToolMiddleware` (Recommended for tools)
@@ -191,6 +209,9 @@ agent = create_agent(
 | `inspect_requests` | `bool` | `True` | Inspect tool call requests before execution |
 | `inspect_responses` | `bool` | `True` | Inspect tool results after execution |
 | `on_violation` | `callable` | `None` | Violation callback |
+
+`AIDefenseToolMiddleware.from_env()` and `AIDefenseAgentsecToolMiddleware.from_env()`
+use the same env conventions as their LLM middleware counterparts.
 
 ### How tool inspection works
 

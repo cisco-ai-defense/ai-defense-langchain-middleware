@@ -1,7 +1,8 @@
 """Tests for AIDefenseToolMiddleware (MCPInspectionClient-based)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+from langchain.messages import ToolMessage
 
 from aidefense_langchain.middleware_tool_inspection import AIDefenseToolMiddleware
 
@@ -37,15 +38,12 @@ def _make_unsafe_response(classifications=None):
 
 def _make_tool_request(name="my_tool", args=None):
     req = MagicMock()
-    req.tool_call = {"name": name, "args": args or {}}
+    req.tool_call = {"id": f"{name}-id", "name": name, "args": args or {}}
     return req
 
 
 def _make_tool_message(content="tool result"):
-    msg = MagicMock()
-    msg.content = content
-    type(msg).__name__ = "ToolMessage"
-    return msg
+    return ToolMessage(content=content, tool_call_id="tool-call-1")
 
 
 class TestAIDefenseToolMiddleware:
@@ -166,3 +164,28 @@ class TestAIDefenseToolMiddleware:
 
         mock_mcp_client.inspect_tool_call.assert_called_once()
         mock_mcp_client.inspect_response.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_awrap_tool_call_runs_async_handler(self, mock_mcp_client):
+        mock_mcp_client.inspect_tool_call.return_value = _make_safe_response()
+        mock_mcp_client.inspect_response.return_value = _make_safe_response()
+
+        mw = AIDefenseToolMiddleware(api_key="test", mode="enforce")
+        handler = AsyncMock(return_value=_make_tool_message())
+        req = _make_tool_request()
+
+        result = await mw.awrap_tool_call(req, handler)
+
+        assert result.content == "tool result"
+        handler.assert_awaited_once_with(req)
+
+    def test_from_env_reads_direct_client_settings(self, mock_mcp_client):
+        mw = AIDefenseToolMiddleware.from_env(
+            {
+                "AIDEFENSE_API_KEY": "test-key",
+                "AIDEFENSE_REGION": "eu",
+                "AIDEFENSE_TIMEOUT": "10",
+            }
+        )
+
+        assert mw.inspect_requests is True
