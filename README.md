@@ -1,13 +1,22 @@
 # Cisco AI Defense — LangChain Middleware
 
-LangChain agent middleware for [Cisco AI Defense](https://developer.cisco.com/docs/ai-defense/overview/), providing runtime security inspection of LLM inputs and outputs.
+LangChain agent middleware for [Cisco AI Defense](https://developer.cisco.com/docs/ai-defense/overview/), providing runtime security inspection of LLM inputs/outputs **and** tool/MCP calls.
 
-Two middleware implementations are provided to demonstrate different integration approaches:
+Four middleware implementations are provided:
+
+### LLM Inspection (`before_model` / `after_model`)
 
 | Middleware | Built on | Best for |
 |---|---|---|
 | `AIDefenseMiddleware` | `ChatInspectionClient` | New integrations — lightweight, no global state |
 | `AIDefenseAgentsecMiddleware` | agentsec `LLMInspector` | Apps that already use `agentsec.protect()` |
+
+### Tool / MCP Inspection (`wrap_tool_call`)
+
+| Middleware | Built on | Best for |
+|---|---|---|
+| `AIDefenseToolMiddleware` | `MCPInspectionClient` | New integrations — tool/MCP call inspection |
+| `AIDefenseAgentsecToolMiddleware` | agentsec `MCPInspector` | Apps that already use `agentsec.protect()` |
 
 ## Quick Start
 
@@ -134,6 +143,86 @@ agent = create_agent(
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(Decision, direction) -> None` callback |
 
+## Tool / MCP Inspection
+
+### `AIDefenseToolMiddleware` (Recommended for tools)
+
+Uses `MCPInspectionClient` to inspect tool call requests (name + arguments) and tool call results.
+
+```python
+from aidefense_langchain import AIDefenseMiddleware, AIDefenseToolMiddleware
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="openai:gpt-4.1",
+    tools=[search_db, send_email],
+    middleware=[
+        AIDefenseMiddleware(api_key="your-key", mode="enforce"),
+        AIDefenseToolMiddleware(api_key="your-key", mode="enforce"),
+    ],
+)
+```
+
+### `AIDefenseAgentsecToolMiddleware`
+
+Uses agentsec's `MCPInspector` with retry, backoff, and fail-open support.
+
+```python
+from aidefense_langchain import AIDefenseAgentsecMiddleware, AIDefenseAgentsecToolMiddleware
+
+agent = create_agent(
+    model="openai:gpt-4.1",
+    tools=[read_file, execute_query],
+    middleware=[
+        AIDefenseAgentsecMiddleware(mode="enforce", api_key="your-key"),
+        AIDefenseAgentsecToolMiddleware(mode="enforce", api_key="your-key"),
+    ],
+)
+```
+
+### Tool Middleware Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `api_key` | `str` | required / from env | Cisco AI Defense API key |
+| `region` | `str` | `"us"` | AI Defense region (ChatClient variant only) |
+| `mode` | `str` | `"enforce"` | `"enforce"`, `"monitor"`, or `"off"` |
+| `fail_open` | `bool` | `True` | Allow on inspection API errors |
+| `inspect_requests` | `bool` | `True` | Inspect tool call requests before execution |
+| `inspect_responses` | `bool` | `True` | Inspect tool results after execution |
+| `on_violation` | `callable` | `None` | Violation callback |
+
+### How tool inspection works
+
+```
+Tool call (from LLM)
+    │
+    ▼
+┌──────────────────────────────────────────────────┐
+│  wrap_tool_call — PRE-CALL inspection            │
+│  → MCPInspectionClient.inspect_tool_call()       │
+│  → if not safe and mode="enforce": return block  │
+└──────────────────────────────────────────────────┘
+    │
+    ▼
+  Tool executes
+    │
+    ▼
+┌──────────────────────────────────────────────────┐
+│  wrap_tool_call — POST-CALL inspection           │
+│  → MCPInspectionClient.inspect_response()        │
+│  → if not safe and mode="enforce": return block  │
+└──────────────────────────────────────────────────┘
+    │
+    ▼
+Tool result returned to agent
+```
+
+This covers **all** tool types:
+- LangChain tools (`@tool` decorated functions)
+- MCP tools registered via LangChain's MCP integration
+- Any tool executed through the agent's tool node
+
 ## Comparison
 
 | Criteria | `AIDefenseMiddleware` | `AIDefenseAgentsecMiddleware` |
@@ -159,6 +248,8 @@ agent = create_agent(
 | 5 | `05_agentsec_with_protect.py` | Agentsec middleware — config inherited from `protect()` |
 | 6 | `06_composed_middleware.py` | AI Defense + custom logging middleware composed together |
 | 7 | `07_side_by_side.py` | Same request through both middleware — side-by-side comparison |
+| 8 | `08_tool_inspection_enforce.py` | Tool inspection — LLM + tool call inspection combined |
+| 9 | `09_tool_inspection_agentsec.py` | Agentsec tool inspection — MCPInspector with retry |
 
 ## Enforcement Modes
 
@@ -183,8 +274,10 @@ When `fail_open=False`:
 ai-defense-langchain-middleware/
 ├── aidefense_langchain/
 │   ├── __init__.py
-│   ├── middleware_chat_client.py   # AIDefenseMiddleware (ChatInspectionClient)
-│   └── middleware_agentsec.py      # AIDefenseAgentsecMiddleware (LLMInspector)
+│   ├── middleware_chat_client.py       # AIDefenseMiddleware (ChatInspectionClient)
+│   ├── middleware_agentsec.py          # AIDefenseAgentsecMiddleware (LLMInspector)
+│   ├── middleware_tool_inspection.py   # AIDefenseToolMiddleware (MCPInspectionClient)
+│   └── middleware_tool_agentsec.py     # AIDefenseAgentsecToolMiddleware (MCPInspector)
 ├── examples/
 │   ├── 01_chat_client_enforce.py
 │   ├── 02_chat_client_monitor.py
@@ -192,8 +285,14 @@ ai-defense-langchain-middleware/
 │   ├── 04_agentsec_enforce.py
 │   ├── 05_agentsec_with_protect.py
 │   ├── 06_composed_middleware.py
-│   └── 07_side_by_side.py
+│   ├── 07_side_by_side.py
+│   ├── 08_tool_inspection_enforce.py
+│   └── 09_tool_inspection_agentsec.py
 ├── tests/
+│   ├── test_middleware_chat_client.py
+│   ├── test_middleware_agentsec.py
+│   ├── test_middleware_tool_inspection.py
+│   └── test_middleware_tool_agentsec.py
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
