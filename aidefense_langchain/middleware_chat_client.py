@@ -22,14 +22,13 @@ explicit configuration at middleware construction time.
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Mapping, Optional
 
 from langchain.agents.middleware import (
     AgentMiddleware,
     AgentState,
-    ModelRequest,
-    ModelResponse,
     hook_config,
 )
 from langchain.messages import AIMessage
@@ -46,6 +45,8 @@ from aidefense.runtime import (
     Rule,
     RuleName,
 )
+
+from ._env import direct_kwargs_from_env, normalize_region
 
 logger = logging.getLogger("aidefense.langchain")
 
@@ -164,8 +165,18 @@ class AIDefenseMiddleware(AgentMiddleware):
         self._metadata = _build_metadata(user=user, src_app=src_app)
         self._inspection_config = self._build_inspection_config(rules)
 
-        config = Config(region=region, timeout=timeout)
+        config = Config(region=normalize_region(region), timeout=timeout)
         self.client = ChatInspectionClient(api_key=api_key, config=config)
+
+    @classmethod
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        **kwargs: Any,
+    ) -> "AIDefenseMiddleware":
+        values = direct_kwargs_from_env(env)
+        values.update(kwargs)
+        return cls(**values)
 
     # -- LangChain hooks ---------------------------------------------------
 
@@ -185,6 +196,21 @@ class AIDefenseMiddleware(AgentMiddleware):
         return None
 
     @hook_config(can_jump_to=["end"])
+    async def abefore_model(
+        self, state: AgentState, runtime: Runtime,
+    ) -> dict[str, Any] | None:
+        """Inspect input messages before they reach the LLM (async)."""
+        if self.mode == "off":
+            return None
+
+        messages = _langchain_messages_to_aidefense(state["messages"])
+        result = await asyncio.to_thread(self._safe_inspect, messages)
+
+        if result is not None and not result.is_safe:
+            return self._handle_violation(result, "input")
+        return None
+
+    @hook_config(can_jump_to=["end"])
     def after_model(
         self, state: AgentState, runtime: Runtime,
     ) -> dict[str, Any] | None:
@@ -194,6 +220,21 @@ class AIDefenseMiddleware(AgentMiddleware):
 
         messages = _langchain_messages_to_aidefense(state["messages"])
         result = self._safe_inspect(messages)
+
+        if result is not None and not result.is_safe:
+            return self._handle_violation(result, "output")
+        return None
+
+    @hook_config(can_jump_to=["end"])
+    async def aafter_model(
+        self, state: AgentState, runtime: Runtime,
+    ) -> dict[str, Any] | None:
+        """Inspect the LLM response after it is received (async)."""
+        if self.mode == "off":
+            return None
+
+        messages = _langchain_messages_to_aidefense(state["messages"])
+        result = await asyncio.to_thread(self._safe_inspect, messages)
 
         if result is not None and not result.is_safe:
             return self._handle_violation(result, "output")
