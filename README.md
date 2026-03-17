@@ -9,14 +9,14 @@ Four middleware implementations are provided:
 | Middleware | Built on | Best for |
 |---|---|---|
 | `AIDefenseMiddleware` | `ChatInspectionClient` | New integrations — lightweight, no global state |
-| `AIDefenseAgentsecMiddleware` | agentsec `LLMInspector` | Apps that already use `agentsec.protect()` |
+| `AIDefenseAgentsecMiddleware` | agentsec `LLMInspector` | When you need agentsec's retry/backoff machinery |
 
 ### Tool / MCP Inspection (`wrap_tool_call`)
 
 | Middleware | Built on | Best for |
 |---|---|---|
 | `AIDefenseToolMiddleware` | `MCPInspectionClient` | New integrations — tool/MCP call inspection |
-| `AIDefenseAgentsecToolMiddleware` | agentsec `MCPInspector` | Apps that already use `agentsec.protect()` |
+| `AIDefenseAgentsecToolMiddleware` | agentsec `MCPInspector` | When you need agentsec's retry/backoff machinery |
 
 ## Quick Start
 
@@ -24,16 +24,6 @@ Four middleware implementations are provided:
 pip install -e ".[examples]"
 cp .env.example .env   # fill in your API keys
 python examples/01_chat_client_enforce.py
-```
-
-All four middleware classes also provide `from_env()` helpers for the common
-example env vars, and the middleware hooks now support both sync and async
-agent execution.
-
-```python
-from aidefense_langchain import AIDefenseMiddleware
-
-middleware = AIDefenseMiddleware.from_env()
 ```
 
 ## Approach 1: `AIDefenseMiddleware` (Recommended)
@@ -74,9 +64,6 @@ result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(InspectResponse, direction) -> None` callback |
 
-Short region aliases such as `us`, `eu`, and `apj` are accepted and normalized
-to the SDK's region names automatically.
-
 ### How it works
 
 ```
@@ -105,13 +92,12 @@ Agent response
 
 ## Approach 2: `AIDefenseAgentsecMiddleware`
 
-Uses agentsec's `LLMInspector` — gets retry with exponential backoff, fail-open semantics, and can inherit config from `agentsec.protect()`.
+Uses agentsec's `LLMInspector` — gets retry with exponential backoff and fail-open semantics.
 
 ```python
 from aidefense_langchain import AIDefenseAgentsecMiddleware
 from langchain.agents import create_agent
 
-# Option A: explicit config
 agent = create_agent(
     model="openai:gpt-4.1",
     tools=[get_weather],
@@ -125,20 +111,13 @@ agent = create_agent(
         ),
     ],
 )
-
-# Option B: inherit from protect()
-from aidefense.runtime import agentsec
-
-agentsec.protect(config="agentsec.yaml", patch_clients=False)
-
-agent = create_agent(
-    model="openai:gpt-4.1",
-    tools=[get_weather],
-    middleware=[
-        AIDefenseAgentsecMiddleware(mode="enforce"),  # config from protect()
-    ],
-)
 ```
+
+> **Do not call `agentsec.protect()` when using middleware.** The middleware
+> handles all inspection directly. Calling `protect()` would activate
+> monkey-patching on the underlying LLM SDK, causing every request to be
+> inspected **twice** — once by the patched SDK and once by the middleware —
+> doubling latency and API calls with no security benefit.
 
 ### Parameters
 
@@ -155,11 +134,6 @@ agent = create_agent(
 | `user` | `str` | `None` | User identity |
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(Decision, direction) -> None` callback |
-
-`AIDefenseAgentsecMiddleware.from_env()` reads `AIDEFENSE_API_KEY`,
-`AIDEFENSE_ENDPOINT`, `AIDEFENSE_MODE`, `AIDEFENSE_FAIL_OPEN`,
-`AIDEFENSE_TIMEOUT_MS`, `AIDEFENSE_RETRY_TOTAL`, and
-`AIDEFENSE_RETRY_BACKOFF`.
 
 ## Tool / MCP Inspection
 
@@ -210,9 +184,6 @@ agent = create_agent(
 | `inspect_responses` | `bool` | `True` | Inspect tool results after execution |
 | `on_violation` | `callable` | `None` | Violation callback |
 
-`AIDefenseToolMiddleware.from_env()` and `AIDefenseAgentsecToolMiddleware.from_env()`
-use the same env conventions as their LLM middleware counterparts.
-
 ### How tool inspection works
 
 ```
@@ -249,14 +220,13 @@ This covers **all** tool types:
 | Criteria | `AIDefenseMiddleware` | `AIDefenseAgentsecMiddleware` |
 |---|:---:|:---:|
 | No global state / side effects | ✅ | ❌ (uses `_state`) |
-| Self-contained config | ✅ | ⚠️ (can use `protect()`) |
+| Self-contained config | ✅ | ✅ (pass explicitly) |
 | Built-in retry + backoff | ⚠️ (via `Config`) | ✅ (custom) |
 | Built-in fail-open | ✅ (in middleware) | ✅ (in inspector) |
 | `inspect_prompt` / `inspect_response` | ✅ | ❌ (`inspect_conversation` only) |
-| Inherits from `protect()` YAML | ❌ | ✅ |
 | Dependency footprint | Lighter (`aidefense.runtime`) | Heavier (`aidefense.runtime.agentsec`) |
 
-**Recommendation**: Use `AIDefenseMiddleware` for new projects. Use `AIDefenseAgentsecMiddleware` if your app already relies on `agentsec.protect()` config.
+**Recommendation**: Use `AIDefenseMiddleware` for new projects. Use `AIDefenseAgentsecMiddleware` when you need agentsec's retry/backoff machinery.
 
 ## Examples
 
@@ -266,11 +236,10 @@ This covers **all** tool types:
 | 2 | `02_chat_client_monitor.py` | ChatClient middleware — monitor mode with violation callback |
 | 3 | `03_chat_client_with_rules.py` | ChatClient middleware — specific rules (PII, Prompt Injection) |
 | 4 | `04_agentsec_enforce.py` | Agentsec middleware — enforce mode with retry config |
-| 5 | `05_agentsec_with_protect.py` | Agentsec middleware — config inherited from `protect()` |
-| 6 | `06_composed_middleware.py` | AI Defense + custom logging middleware composed together |
-| 7 | `07_side_by_side.py` | Same request through both middleware — side-by-side comparison |
-| 8 | `08_tool_inspection_enforce.py` | Tool inspection — LLM + tool call inspection combined |
-| 9 | `09_tool_inspection_agentsec.py` | Agentsec tool inspection — MCPInspector with retry |
+| 5 | `05_composed_middleware.py` | AI Defense + custom logging middleware composed together |
+| 6 | `06_side_by_side.py` | Same request through both middleware — side-by-side comparison |
+| 7 | `07_tool_inspection_enforce.py` | Tool inspection — LLM + tool call inspection combined |
+| 8 | `08_tool_inspection_agentsec.py` | Agentsec tool inspection — MCPInspector with retry |
 
 ## Enforcement Modes
 
@@ -304,11 +273,10 @@ ai-defense-langchain-middleware/
 │   ├── 02_chat_client_monitor.py
 │   ├── 03_chat_client_with_rules.py
 │   ├── 04_agentsec_enforce.py
-│   ├── 05_agentsec_with_protect.py
-│   ├── 06_composed_middleware.py
-│   ├── 07_side_by_side.py
-│   ├── 08_tool_inspection_enforce.py
-│   └── 09_tool_inspection_agentsec.py
+│   ├── 05_composed_middleware.py
+│   ├── 06_side_by_side.py
+│   ├── 07_tool_inspection_enforce.py
+│   └── 08_tool_inspection_agentsec.py
 ├── tests/
 │   ├── test_middleware_chat_client.py
 │   ├── test_middleware_agentsec.py
