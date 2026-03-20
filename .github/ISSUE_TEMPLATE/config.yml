@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/cisco-ai-defense/langchain-cisco-ai-defense/security/advisories/new
+    about: Report security vulnerabilities through GitHub's private reporting. Do NOT open a public issue.
+  - name: Cisco AI Defense SDK
+    url: https://github.com/cisco-ai-defense/ai-defense-python-sdk
+    about: For issues with the core Cisco AI Defense Python SDK (not the LangChain middleware).
