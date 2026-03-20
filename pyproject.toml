@@ -3,26 +3,69 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aidefense-langchain"
+name = "langchain-cisco-ai-defense"
 version = "0.1.0"
-description = "Cisco AI Defense middleware for LangChain agents"
-requires-python = ">=3.10"
+description = "Cisco AI Defense middleware for LangChain agents — runtime security inspection of LLM inputs/outputs and tool/MCP calls"
+readme = "README.md"
 license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Cisco Systems, Inc."},
+]
+maintainers = [
+    {name = "Cisco AI Defense Team"},
+]
+keywords = [
+    "langchain",
+    "cisco",
+    "ai-defense",
+    "middleware",
+    "security",
+    "guardrails",
+    "llm",
+    "mcp",
+    "prompt-injection",
+    "pii",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Security",
+]
 dependencies = [
-    "aidefense",
+    "aidefense>=0.1.0",
     "langchain>=1.0.0",
-    "langgraph",
+    "langgraph>=0.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
 ]
 examples = [
     "langchain-openai",
     "python-dotenv",
 ]
 
+[project.urls]
+Homepage = "https://github.com/cisco-ai-defense/langchain-cisco-ai-defense"
+Documentation = "https://developer.cisco.com/docs/ai-defense/overview/"
+Repository = "https://github.com/cisco-ai-defense/langchain-cisco-ai-defense"
+Issues = "https://github.com/cisco-ai-defense/langchain-cisco-ai-defense/issues"
+Changelog = "https://github.com/cisco-ai-defense/langchain-cisco-ai-defense/blob/main/CHANGELOG.md"
+
 [tool.setuptools.packages.find]
 include = ["aidefense_langchain*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

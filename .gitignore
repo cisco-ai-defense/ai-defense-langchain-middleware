@@ -12,3 +12,8 @@ env/
 .pytest_cache/
 .mypy_cache/
 *.log
+.tox/
+*.whl
+*.tar.gz
+.coverage
+htmlcov/
