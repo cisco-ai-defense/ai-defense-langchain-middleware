@@ -183,7 +183,7 @@ class TestAIDefenseToolMiddleware:
         mw = AIDefenseToolMiddleware.from_env(
             {
                 "AIDEFENSE_API_KEY": "test-key",
-                "AIDEFENSE_REGION": "eu",
+                "AIDEFENSE_REGION": "eu-central-1",
                 "AIDEFENSE_TIMEOUT": "10",
             }
         )

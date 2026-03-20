@@ -141,7 +141,7 @@ class TestAIDefenseMiddleware:
             mw = AIDefenseMiddleware.from_env(
                 {
                     "AIDEFENSE_API_KEY": "test-key",
-                    "AIDEFENSE_REGION": "us",
+                    "AIDEFENSE_REGION": "us-west-2",
                     "AIDEFENSE_MODE": "monitor",
                 }
             )

@@ -59,7 +59,8 @@ class AIDefenseToolMiddleware(AgentMiddleware):
     api_key : str
         Cisco AI Defense API key.
     region : str
-        AI Defense region (``"us"``, ``"eu"``, ``"apj"``).  Default ``"us"``.
+        AI Defense region (e.g. ``"us-west-2"``, ``"eu-central-1"``,
+        ``"ap-northeast-1"``).  Default ``"us-west-2"``.
     mode : str
         Enforcement mode: ``"enforce"`` (block violations), ``"monitor"``
         (log only), or ``"off"`` (skip inspection).  Default ``"enforce"``.
@@ -97,7 +98,7 @@ class AIDefenseToolMiddleware(AgentMiddleware):
     def __init__(
         self,
         api_key: str,
-        region: str = "us",
+        region: str = "us-west-2",
         mode: str = "enforce",
         fail_open: bool = True,
         timeout: int = 30,

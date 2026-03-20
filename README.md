@@ -48,7 +48,7 @@ agent = create_agent(
     middleware=[
         AIDefenseMiddleware(
             api_key="your-cisco-ai-defense-api-key",
-            region="us",
+            region="us-west-2",
             mode="enforce",
         ),
     ],
@@ -73,7 +73,7 @@ agent = create_agent(
     middleware=[
         AIDefenseMiddleware(
             api_key="your-api-key",
-            region="us",
+            region="us-west-2",
             mode="enforce",       # "enforce" | "monitor" | "off"
             fail_open=True,
         ),
@@ -86,7 +86,7 @@ agent = create_agent(
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `api_key` | `str` | required | Cisco AI Defense API key |
-| `region` | `str` | `"us"` | AI Defense region (`"us"`, `"eu"`, `"apj"`) |
+| `region` | `str` | `"us-west-2"` | AI Defense region (`"us-west-2"`, `"eu-central-1"`, `"ap-northeast-1"`) |
 | `mode` | `str` | `"enforce"` | `"enforce"` (block), `"monitor"` (log only), `"off"` |
 | `fail_open` | `bool` | `True` | Allow on inspection API errors |
 | `timeout` | `int` | `30` | Inspection timeout in seconds |
@@ -208,7 +208,7 @@ agent = create_agent(
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `api_key` | `str` | required / from env | Cisco AI Defense API key |
-| `region` | `str` | `"us"` | AI Defense region (ChatClient variant only) |
+| `region` | `str` | `"us-west-2"` | AI Defense region (ChatClient variant only) |
 | `mode` | `str` | `"enforce"` | `"enforce"`, `"monitor"`, or `"off"` |
 | `fail_open` | `bool` | `True` | Allow on inspection API errors |
 | `inspect_requests` | `bool` | `True` | Inspect tool call requests before execution |
@@ -252,7 +252,7 @@ The middleware can also be configured via environment variables (used by `from_e
 
 ```bash
 export AIDEFENSE_API_KEY=your-api-key
-export AIDEFENSE_REGION=us
+export AIDEFENSE_REGION=us-west-2
 export AIDEFENSE_MODE=enforce
 export AIDEFENSE_FAIL_OPEN=true
 export AIDEFENSE_TIMEOUT=30

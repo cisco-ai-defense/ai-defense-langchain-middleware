@@ -49,13 +49,13 @@ def main():
 
     llm_middleware = AIDefenseMiddleware(
         api_key=api_key,
-        region="us",
+        region="us-west-2",
         mode="enforce",
     )
 
     tool_middleware = AIDefenseToolMiddleware(
         api_key=api_key,
-        region="us",
+        region="us-west-2",
         mode="enforce",
         inspect_requests=True,
         inspect_responses=True,

@@ -31,7 +31,7 @@ def direct_kwargs_from_env(env: Mapping[str, str] | None = None) -> dict[str, An
 
     kwargs: dict[str, Any] = {
         "api_key": api_key,
-        "region": normalize_region(values.get("AIDEFENSE_REGION", "us")),
+        "region": normalize_region(values.get("AIDEFENSE_REGION", "us-west-2")),
     }
 
     mode = values.get("AIDEFENSE_MODE")

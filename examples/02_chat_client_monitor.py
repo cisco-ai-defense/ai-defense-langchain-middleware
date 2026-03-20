@@ -47,7 +47,7 @@ agent = create_agent(
     middleware=[
         AIDefenseMiddleware(
             api_key=os.environ["AIDEFENSE_API_KEY"],
-            region=os.environ.get("AIDEFENSE_REGION", "us"),
+            region=os.environ.get("AIDEFENSE_REGION", "us-west-2"),
             mode="monitor",
             on_violation=record_violation,
             user="demo-user",
