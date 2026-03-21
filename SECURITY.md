@@ -1,7 +1,7 @@
 # Security Policies and Procedures
 
 This document outlines security procedures and general policies for the
-`langchain-cisco-ai-defense` project.
+`langchain-cisco-aidefense` project.
 
 ## Disclosing a Security Issue
 

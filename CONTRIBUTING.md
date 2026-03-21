@@ -1,6 +1,6 @@
 # How to Contribute
 
-Thanks for your interest in contributing to `langchain-cisco-ai-defense`! This
+Thanks for your interest in contributing to `langchain-cisco-aidefense`! This
 document outlines the process for contributing and the standards we follow.
 
 Please note that all interactions are subject to the
@@ -17,7 +17,7 @@ Please note that all interactions are subject to the
 ## Reporting Issues
 
 Before reporting a new issue, please search the
-[issues list](https://github.com/cisco-ai-defense/langchain-cisco-ai-defense/issues)
+[issues list](https://github.com/cisco-ai-defense/langchain-cisco-aidefense/issues)
 to check if it has already been reported or fixed.
 
 When creating an issue, please include:
@@ -40,8 +40,8 @@ See [SECURITY.md](/SECURITY.md) for responsible disclosure procedures.**
 
 ```bash
 # Fork and clone the repository
-git clone https://github.com/<your-username>/langchain-cisco-ai-defense.git
-cd langchain-cisco-ai-defense
+git clone https://github.com/<your-username>/langchain-cisco-aidefense.git
+cd langchain-cisco-aidefense
 
 # Create a virtual environment
 python -m venv .venv

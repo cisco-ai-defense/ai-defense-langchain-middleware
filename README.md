@@ -1,6 +1,6 @@
-# langchain-cisco-ai-defense
+# langchain-cisco-aidefense
 
-[![PyPI version](https://img.shields.io/pypi/v/langchain-cisco-ai-defense.svg)](https://pypi.org/project/langchain-cisco-ai-defense/)
+[![PyPI version](https://img.shields.io/pypi/v/langchain-cisco-aidefense.svg)](https://pypi.org/project/langchain-cisco-aidefense/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
@@ -11,7 +11,7 @@ Detects prompt injection, jailbreaks, PII leakage, toxic content, and unsafe too
 ## Installation
 
 ```bash
-pip install langchain-cisco-ai-defense
+pip install langchain-cisco-aidefense
 ```
 
 ## Middleware Overview
@@ -35,7 +35,7 @@ Four middleware implementations are provided:
 ## Quick Start
 
 ```bash
-pip install langchain-cisco-ai-defense langchain-openai
+pip install langchain-cisco-aidefense langchain-openai
 ```
 
 ```python
@@ -310,8 +310,8 @@ When `fail_open=False`:
 ## Development
 
 ```bash
-git clone https://github.com/cisco-ai-defense/langchain-cisco-ai-defense.git
-cd langchain-cisco-ai-defense
+git clone https://github.com/cisco-ai-defense/langchain-cisco-aidefense.git
+cd langchain-cisco-aidefense
 pip install -e ".[dev,examples]"
 pytest
 ```
