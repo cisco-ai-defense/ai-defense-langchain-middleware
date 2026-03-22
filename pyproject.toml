@@ -4,16 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-cisco-aidefense"
-version = "0.1.0"
+version = "1.0.0"
 description = "Cisco AI Defense middleware for LangChain agents — runtime security inspection of LLM inputs/outputs and tool/MCP calls"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 authors = [
-    {name = "Cisco Systems, Inc."},
+    {name = "Shiva Guntoju", email = "shguntoj@cisco.com"},
+    {name = "Barry Yuan", email = "bayuan@cisco.com"},
 ]
 maintainers = [
-    {name = "Cisco AI Defense Team"},
+    {name = "Shiva Guntoju", email = "shguntoj@cisco.com"},
+    {name = "Barry Yuan", email = "bayuan@cisco.com"},
 ]
 keywords = [
     "langchain",
@@ -58,7 +60,7 @@ examples = [
 
 [project.urls]
 Homepage = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense"
-Documentation = "https://developer.cisco.com/docs/ai-defense/overview/"
+Documentation = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense#readme"
 Repository = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense"
 Issues = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense/issues"
 Changelog = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense/blob/main/CHANGELOG.md"
