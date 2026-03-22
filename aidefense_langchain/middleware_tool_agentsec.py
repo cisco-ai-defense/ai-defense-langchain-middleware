@@ -33,6 +33,7 @@ from langgraph.types import Command
 from aidefense.runtime.agentsec.inspectors.api_mcp import MCPInspector
 
 from ._env import agentsec_kwargs_from_env
+from ._content import tool_result_payload
 
 logger = logging.getLogger("aidefense.langchain.tools.agentsec")
 
@@ -285,12 +286,7 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
     ) -> Optional[Dict[str, Any]]:
         """Extract inspectable data from a tool result."""
         if isinstance(tool_result, ToolMessage):
-            content = tool_result.content
-            if isinstance(content, str):
-                return {"content": [{"type": "text", "text": content}]}
-            if isinstance(content, dict):
-                return content
-            return {"content": str(content)}
+            return tool_result_payload(tool_result.content)
         return None
 
     def close(self) -> None:

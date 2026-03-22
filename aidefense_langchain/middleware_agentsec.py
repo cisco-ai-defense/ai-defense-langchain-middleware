@@ -39,6 +39,7 @@ from aidefense.runtime.agentsec.decision import Decision
 from aidefense.runtime.agentsec.inspectors.api_llm import LLMInspector
 
 from ._env import agentsec_kwargs_from_env
+from ._content import flatten_content_text
 
 logger = logging.getLogger("aidefense.langchain.agentsec")
 
@@ -59,7 +60,7 @@ def _langchain_messages_to_dicts(lc_messages: list) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     for msg in lc_messages:
         role = _LC_TYPE_TO_ROLE_STR.get(getattr(msg, "type", ""), "user")
-        content = msg.content if isinstance(msg.content, str) else str(msg.content)
+        content = flatten_content_text(msg.content)
         result.append({"role": role, "content": content})
     return result
 

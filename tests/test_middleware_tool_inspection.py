@@ -192,3 +192,24 @@ class TestAIDefenseToolMiddleware:
         )
 
         assert mw.inspect_requests is True
+
+    def test_structured_tool_result_content_is_flattened(self, mock_mcp_client):
+        mw = AIDefenseToolMiddleware(api_key="test", mode="enforce")
+        result_data = mw._extract_result_data(
+            ToolMessage(
+                content=[
+                    {"type": "text", "text": "alice@example.com"},
+                    {"type": "text", "text": "bob@example.com"},
+                ],
+                tool_call_id="tool-call-1",
+            )
+        )
+
+        assert result_data == {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "alice@example.com\nbob@example.com",
+                }
+            ]
+        }
