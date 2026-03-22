@@ -60,7 +60,7 @@ examples = [
 
 [project.urls]
 Homepage = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense"
-Documentation = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense#readme"
+Documentation = "https://developer.cisco.com/docs/ai-defense-inspection/"
 Repository = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense"
 Issues = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense/issues"
 Changelog = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense/blob/main/CHANGELOG.md"
