@@ -25,9 +25,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-agentsec = pytest.importorskip(
-    "aidefense.runtime.agentsec", reason="agentsec requires cisco-aidefense-sdk >=2.1.0"
-)
 from aidefense.runtime.agentsec.decision import Decision
 
 

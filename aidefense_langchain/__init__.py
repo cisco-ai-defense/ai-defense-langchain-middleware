@@ -37,7 +37,9 @@ native ``jump_to`` / state-update patterns.
 """
 
 from .middleware_chat_client import AIDefenseMiddleware
+from .middleware_agentsec import AIDefenseAgentsecMiddleware
 from .middleware_tool_inspection import AIDefenseToolMiddleware
+from .middleware_tool_agentsec import AIDefenseAgentsecToolMiddleware
 
 __all__ = [
     "AIDefenseMiddleware",
@@ -45,16 +47,3 @@ __all__ = [
     "AIDefenseToolMiddleware",
     "AIDefenseAgentsecToolMiddleware",
 ]
-
-
-def __getattr__(name: str):
-    """Lazy-load agentsec middleware classes (require cisco-aidefense-sdk >=2.1.0)."""
-    if name == "AIDefenseAgentsecMiddleware":
-        from .middleware_agentsec import AIDefenseAgentsecMiddleware
-
-        return AIDefenseAgentsecMiddleware
-    if name == "AIDefenseAgentsecToolMiddleware":
-        from .middleware_tool_agentsec import AIDefenseAgentsecToolMiddleware
-
-        return AIDefenseAgentsecToolMiddleware
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
