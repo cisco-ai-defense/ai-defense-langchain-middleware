@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `wrap_tool_call`/`awrap_tool_call`).
 
 - **Region normalization** — Short aliases (`"us"`, `"eu"`, `"apj"`) are automatically
-  expanded to full AWS region names (e.g., `"us-east-1"`, `"eu-west-1"`, `"ap-southeast-1"`).
+  expanded to full AWS region names (e.g., `"us"` → `"us-west-2"`, `"eu"` → `"eu-central-1"`, `"apj"` → `"ap-northeast-1"`).
 
 - 8 example scripts covering enforce mode, monitor mode, custom rules, composed
   middleware, side-by-side comparison, and tool/MCP inspection.
