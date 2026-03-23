@@ -1,5 +1,3 @@
-aidefense
+cisco-aidefense-sdk>=2.1.0
 langchain>=1.0.0
-langgraph
-langchain-openai
-python-dotenv
+langgraph>=0.2.0
