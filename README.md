@@ -310,8 +310,8 @@ When `fail_open=False`:
 ## Development
 
 ```bash
-git clone https://github.com/cisco-ai-defense/langchain-cisco-aidefense.git
-cd langchain-cisco-aidefense
+git clone https://github.com/cisco-ai-defense/ai-defense-langchain-middleware.git
+cd ai-defense-langchain-middleware
 pip install -e ".[dev,examples]"
 pytest
 ```

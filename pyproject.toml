@@ -59,11 +59,11 @@ examples = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense"
+Homepage = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware"
 Documentation = "https://developer.cisco.com/docs/ai-defense-inspection/"
-Repository = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense"
-Issues = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense/issues"
-Changelog = "https://github.com/cisco-ai-defense/langchain-cisco-aidefense/blob/main/CHANGELOG.md"
+Repository = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware"
+Issues = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware/issues"
+Changelog = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["aidefense_langchain*"]
