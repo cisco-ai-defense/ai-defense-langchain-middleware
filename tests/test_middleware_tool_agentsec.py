@@ -193,3 +193,24 @@ class TestAIDefenseAgentsecToolMiddleware:
         assert kwargs["api_key"] == "test-key"
         assert kwargs["endpoint"] == "https://example.com"
         assert kwargs["retry_backoff"] == 1.5
+
+    def test_structured_tool_result_content_is_flattened(self, mock_inspector):
+        mw = AIDefenseAgentsecToolMiddleware(mode="enforce")
+        result_data = mw._extract_result_data(
+            ToolMessage(
+                content=[
+                    {"type": "text", "text": "alice@example.com"},
+                    {"type": "text", "text": "bob@example.com"},
+                ],
+                tool_call_id="tool-call-1",
+            )
+        )
+
+        assert result_data == {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "alice@example.com\nbob@example.com",
+                }
+            ]
+        }

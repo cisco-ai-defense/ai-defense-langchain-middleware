@@ -47,6 +47,7 @@ from aidefense.runtime import (
 )
 
 from ._env import direct_kwargs_from_env, normalize_region
+from ._content import flatten_content_text
 
 logger = logging.getLogger("aidefense.langchain")
 
@@ -67,7 +68,7 @@ def _langchain_messages_to_aidefense(lc_messages: list) -> List[Message]:
     result: List[Message] = []
     for msg in lc_messages:
         role = _LC_TYPE_TO_ROLE.get(getattr(msg, "type", ""), Role.USER)
-        content = msg.content if isinstance(msg.content, str) else str(msg.content)
+        content = flatten_content_text(msg.content)
         result.append(Message(role=role, content=content))
     return result
 

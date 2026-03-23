@@ -39,6 +39,7 @@ from aidefense.runtime import MCPInspectionClient
 from aidefense.runtime.mcp_models import MCPInspectResponse
 
 from ._env import direct_kwargs_from_env, normalize_region
+from ._content import tool_result_payload
 
 logger = logging.getLogger("aidefense.langchain.tools")
 
@@ -347,12 +348,7 @@ class AIDefenseToolMiddleware(AgentMiddleware):
     ) -> Optional[Dict[str, Any]]:
         """Extract inspectable data from a tool result."""
         if isinstance(tool_result, ToolMessage):
-            content = tool_result.content
-            if isinstance(content, str):
-                return {"content": [{"type": "text", "text": content}]}
-            if isinstance(content, dict):
-                return content
-            return {"content": str(content)}
+            return tool_result_payload(tool_result.content)
         if isinstance(tool_result, Command):
             return None
         return None
