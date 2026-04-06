@@ -132,6 +132,8 @@ class AIDefenseToolMiddleware(AgentMiddleware):
     ) -> "AIDefenseToolMiddleware":
         values = direct_kwargs_from_env(env)
         values.update(kwargs)
+        values.pop("user", None)
+        values.pop("src_app", None)
         return cls(**values)
 
     # -- LangChain hook ----------------------------------------------------
