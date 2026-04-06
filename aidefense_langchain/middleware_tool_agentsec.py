@@ -251,7 +251,7 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
         """Map a Decision to enforcement or monitoring."""
         action = getattr(decision, "action", "allow")
 
-        if action in ("allow", "monitor_only"):
+        if action in ("allow", "monitor_only", "sanitize"):
             if action == "monitor_only":
                 logger.info(
                     f"AI Defense monitor: tool={tool_name} "

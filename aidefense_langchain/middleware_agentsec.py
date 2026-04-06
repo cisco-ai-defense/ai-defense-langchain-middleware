@@ -72,12 +72,16 @@ def _build_metadata(
 ) -> Dict[str, Any]:
     """Build a metadata dict for ``LLMInspector.inspect_conversation``."""
     meta: Dict[str, Any] = {}
+    if extra:
+        _ALLOWED_EXTRA = {"dst_app", "sni", "dst_ip", "src_ip", "dst_host",
+                          "user_agent", "client_transaction_id"}
+        for key in _ALLOWED_EXTRA:
+            if key in extra:
+                meta[key] = extra[key]
     if user:
         meta["user"] = user
     if src_app:
         meta["src_app"] = src_app
-    if extra:
-        meta.update(extra)
     return meta
 
 
@@ -237,16 +241,20 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         decision = await self.inspector.ainspect_conversation(messages, self._metadata)
         return self._process_decision(decision, "output")
 
+    def close(self) -> None:
+        """Release inspector resources (aiohttp sessions, etc.)."""
+        self.inspector.close()
+
     # -- Internal helpers --------------------------------------------------
 
     def _process_decision(
         self, decision: Decision, direction: str,
     ) -> dict[str, Any] | None:
         """Map an agentsec ``Decision`` to a LangChain state update."""
-        if decision.action == "allow" or decision.action == "monitor_only":
+        if decision.allows():
             return None
 
-        # Violation detected (block or sanitize)
+        # Violation detected (block only — sanitize/allow/monitor_only are permitted)
         log_parts = [
             f"direction={direction}",
             f"action={decision.action}",

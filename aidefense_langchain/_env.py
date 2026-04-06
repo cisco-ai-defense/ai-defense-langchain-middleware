@@ -49,6 +49,14 @@ def direct_kwargs_from_env(env: Mapping[str, str] | None = None) -> dict[str, An
     if timeout is not None:
         kwargs["timeout"] = timeout
 
+    user = values.get("AIDEFENSE_USER")
+    if user:
+        kwargs["user"] = user
+
+    src_app = values.get("AIDEFENSE_SRC_APP")
+    if src_app:
+        kwargs["src_app"] = src_app
+
     return kwargs
 
 
@@ -83,6 +91,14 @@ def agentsec_kwargs_from_env(env: Mapping[str, str] | None = None) -> dict[str, 
     retry_backoff = _parse_float(values.get("AIDEFENSE_RETRY_BACKOFF"))
     if retry_backoff is not None:
         kwargs["retry_backoff"] = retry_backoff
+
+    user = values.get("AIDEFENSE_USER")
+    if user:
+        kwargs["user"] = user
+
+    src_app = values.get("AIDEFENSE_SRC_APP")
+    if src_app:
+        kwargs["src_app"] = src_app
 
     return kwargs
 

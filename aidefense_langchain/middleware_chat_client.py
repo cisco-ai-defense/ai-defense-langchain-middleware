@@ -300,6 +300,12 @@ class AIDefenseMiddleware(AgentMiddleware):
         logger.warning(f"{log_msg} — monitor only, allowing request")
         return None
 
+    def close(self) -> None:
+        """Release underlying HTTP session resources."""
+        session = getattr(self.client, "_session", None)
+        if session is not None:
+            session.close()
+
     @staticmethod
     def _build_inspection_config(
         rules: Optional[list],
