@@ -320,7 +320,8 @@ class AIDefenseMiddleware(AgentMiddleware):
 
     def close(self) -> None:
         """Release underlying HTTP session resources."""
-        session = getattr(self.client, "_session", None)
+        handler = getattr(self.client, "_request_handler", None)
+        session = getattr(handler, "_session", None) if handler else None
         if session is not None:
             session.close()
 
