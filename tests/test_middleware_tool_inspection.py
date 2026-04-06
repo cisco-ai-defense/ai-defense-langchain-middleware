@@ -193,6 +193,22 @@ class TestAIDefenseToolMiddleware:
 
         assert mw.inspect_requests is True
 
+    def test_explicit_config_is_passed_to_client(self, mock_mcp_client):
+        """When a pre-built Config is provided, it should be forwarded
+        directly to MCPInspectionClient instead of constructing a new one."""
+        with patch(
+            "aidefense_langchain.middleware_tool_inspection.MCPInspectionClient"
+        ) as MockClient, patch(
+            "aidefense_langchain.middleware_tool_inspection.Config"
+        ) as MockConfig:
+            fake_config = MagicMock()
+            AIDefenseToolMiddleware(api_key="test-key", config=fake_config)
+
+            MockConfig.assert_not_called()
+            MockClient.assert_called_once_with(
+                api_key="test-key", config=fake_config
+            )
+
     def test_from_env_ignores_user_and_src_app(self, mock_mcp_client):
         """AIDEFENSE_USER / AIDEFENSE_SRC_APP must not leak into the
         tool middleware constructor (it doesn't accept them)."""

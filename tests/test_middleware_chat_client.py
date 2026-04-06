@@ -152,6 +152,19 @@ class TestAIDefenseMiddleware:
 
         assert mw.mode == "monitor"
 
+    def test_explicit_config_is_passed_to_client(self):
+        """When a pre-built Config is provided, it should be forwarded
+        directly to ChatInspectionClient instead of constructing a new one."""
+        with patch("aidefense_langchain.middleware_chat_client.ChatInspectionClient") as MockClient, \
+             patch("aidefense_langchain.middleware_chat_client.Config") as MockConfig:
+            from aidefense_langchain import AIDefenseMiddleware
+
+            fake_config = MagicMock()
+            AIDefenseMiddleware(api_key="test-key", config=fake_config)
+
+            MockConfig.assert_not_called()
+            MockClient.assert_called_once_with(api_key="test-key", config=fake_config)
+
     # -- validation --------------------------------------------------------
 
     def test_invalid_mode_raises(self):

@@ -70,6 +70,12 @@ class AIDefenseToolMiddleware(AgentMiddleware):
         is unreachable.  If ``False``, block on API errors.
     timeout : int
         Inspection API timeout in seconds.  Default ``30``.
+    config : Config, optional
+        Pre-built SDK ``Config`` instance.  When provided, ``region`` and
+        ``timeout`` are ignored and the supplied config is passed directly
+        to the underlying client.  ``Config`` is a process-wide singleton —
+        construct it once and share across middleware to avoid silent
+        parameter conflicts.
     inspect_requests : bool
         Inspect tool call requests (name + args) before execution.
         Default ``True``.
@@ -94,6 +100,16 @@ class AIDefenseToolMiddleware(AgentMiddleware):
                 AIDefenseToolMiddleware(api_key="...", mode="enforce"),
             ],
         )
+
+    When composing LLM + tool middleware, construct ``Config`` once and
+    share it to avoid singleton conflicts::
+
+        from aidefense.config import Config
+        from aidefense_langchain import AIDefenseMiddleware, AIDefenseToolMiddleware
+
+        config = Config(region="us-west-2", timeout=30)
+        llm_mw  = AIDefenseMiddleware(api_key=key, config=config)
+        tool_mw = AIDefenseToolMiddleware(api_key=key, config=config)
     """
 
     def __init__(
@@ -103,6 +119,7 @@ class AIDefenseToolMiddleware(AgentMiddleware):
         mode: str = "enforce",
         fail_open: bool = True,
         timeout: int = 30,
+        config: Optional[Config] = None,
         inspect_requests: bool = True,
         inspect_responses: bool = True,
         on_violation: Optional[
@@ -121,7 +138,8 @@ class AIDefenseToolMiddleware(AgentMiddleware):
         self.inspect_responses = inspect_responses
         self.on_violation = on_violation
 
-        config = Config(region=normalize_region(region), timeout=timeout)
+        if config is None:
+            config = Config(region=normalize_region(region), timeout=timeout)
         self.client = MCPInspectionClient(api_key=api_key, config=config)
 
     @classmethod
