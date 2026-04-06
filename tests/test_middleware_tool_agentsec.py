@@ -194,6 +194,21 @@ class TestAIDefenseAgentsecToolMiddleware:
         assert kwargs["endpoint"] == "https://example.com"
         assert kwargs["retry_backoff"] == 1.5
 
+    def test_from_env_ignores_user_and_src_app(self, mock_inspector):
+        """AIDEFENSE_USER / AIDEFENSE_SRC_APP must not leak into the
+        tool middleware constructor (it doesn't accept them)."""
+        with patch(
+            "aidefense_langchain.middleware_tool_agentsec.MCPInspector"
+        ):
+            AIDefenseAgentsecToolMiddleware.from_env(
+                {
+                    "AIDEFENSE_API_KEY": "test-key",
+                    "AIDEFENSE_ENDPOINT": "https://example.com",
+                    "AIDEFENSE_USER": "alice",
+                    "AIDEFENSE_SRC_APP": "myapp",
+                }
+            )
+
     def test_structured_tool_result_content_is_flattened(self, mock_inspector):
         mw = AIDefenseAgentsecToolMiddleware(mode="enforce")
         result_data = mw._extract_result_data(

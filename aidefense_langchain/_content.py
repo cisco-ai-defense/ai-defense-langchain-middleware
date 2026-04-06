@@ -5,6 +5,9 @@ from typing import Any
 
 
 def flatten_content_text(content: Any) -> str:
+    if content is None:
+        return ""
+
     if isinstance(content, str):
         return content
 

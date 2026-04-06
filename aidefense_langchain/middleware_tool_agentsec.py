@@ -124,6 +124,8 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
     ) -> "AIDefenseAgentsecToolMiddleware":
         values = agentsec_kwargs_from_env(env)
         values.update(kwargs)
+        values.pop("user", None)
+        values.pop("src_app", None)
         return cls(**values)
 
     # -- LangChain hook ----------------------------------------------------
@@ -251,7 +253,7 @@ class AIDefenseAgentsecToolMiddleware(AgentMiddleware):
         """Map a Decision to enforcement or monitoring."""
         action = getattr(decision, "action", "allow")
 
-        if action in ("allow", "monitor_only"):
+        if action in ("allow", "monitor_only", "sanitize"):
             if action == "monitor_only":
                 logger.info(
                     f"AI Defense monitor: tool={tool_name} "

@@ -118,6 +118,12 @@ class AIDefenseMiddleware(AgentMiddleware):
         unreachable.  If ``False``, block on API errors.
     timeout : int
         Inspection API timeout in seconds.  Default ``30``.
+    config : Config, optional
+        Pre-built SDK ``Config`` instance.  When provided, ``region`` and
+        ``timeout`` are ignored and the supplied config is passed directly
+        to the underlying client.  ``Config`` is a process-wide singleton —
+        construct it once and share across middleware to avoid silent
+        parameter conflicts.
     rules : list, optional
         List of rule names or ``Rule`` objects to enable.
     user : str, optional
@@ -142,6 +148,16 @@ class AIDefenseMiddleware(AgentMiddleware):
                 AIDefenseMiddleware(api_key="...", region="us-west-2", mode="enforce"),
             ],
         )
+
+    When composing LLM + tool middleware, construct ``Config`` once and
+    share it to avoid singleton conflicts::
+
+        from aidefense.config import Config
+        from aidefense_langchain import AIDefenseMiddleware, AIDefenseToolMiddleware
+
+        config = Config(region="us-west-2", timeout=30)
+        llm_mw  = AIDefenseMiddleware(api_key=key, config=config)
+        tool_mw = AIDefenseToolMiddleware(api_key=key, config=config)
     """
 
     def __init__(
@@ -151,6 +167,7 @@ class AIDefenseMiddleware(AgentMiddleware):
         mode: str = "enforce",
         fail_open: bool = True,
         timeout: int = 30,
+        config: Optional[Config] = None,
         rules: Optional[list] = None,
         user: Optional[str] = None,
         src_app: Optional[str] = None,
@@ -167,7 +184,8 @@ class AIDefenseMiddleware(AgentMiddleware):
         self._metadata = _build_metadata(user=user, src_app=src_app)
         self._inspection_config = self._build_inspection_config(rules)
 
-        config = Config(region=normalize_region(region), timeout=timeout)
+        if config is None:
+            config = Config(region=normalize_region(region), timeout=timeout)
         self.client = ChatInspectionClient(api_key=api_key, config=config)
 
     @classmethod
@@ -299,6 +317,13 @@ class AIDefenseMiddleware(AgentMiddleware):
         # monitor mode
         logger.warning(f"{log_msg} — monitor only, allowing request")
         return None
+
+    def close(self) -> None:
+        """Release underlying HTTP session resources."""
+        handler = getattr(self.client, "_request_handler", None)
+        session = getattr(handler, "_session", None) if handler else None
+        if session is not None:
+            session.close()
 
     @staticmethod
     def _build_inspection_config(
