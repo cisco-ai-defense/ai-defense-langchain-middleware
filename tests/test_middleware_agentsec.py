@@ -24,7 +24,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain.agents import create_agent
+from langchain_core.language_models import FakeListChatModel
 from langchain.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
 
 from aidefense.runtime.agentsec.decision import Decision
 
@@ -45,6 +48,10 @@ class TestAIDefenseAgentsecMiddleware:
         msg.type = "human"
         msg.content = content
         return {"messages": [msg]}
+
+    @staticmethod
+    def _inspection_messages(messages):
+        return [(msg["role"], msg["content"]) for msg in messages]
 
     # -- mode tests --------------------------------------------------------
 
@@ -121,6 +128,44 @@ class TestAIDefenseAgentsecMiddleware:
         result = mw.after_model(state, MagicMock())
         assert result is not None
         assert result["jump_to"] == "end"
+
+    def test_multiturn_agent_reinspects_growing_transcript(self):
+        with patch("aidefense_langchain.middleware_agentsec.LLMInspector"):
+            from aidefense_langchain import AIDefenseAgentsecMiddleware
+
+            mw = AIDefenseAgentsecMiddleware(
+                mode="enforce",
+                api_key="test-key",
+                endpoint="https://example.com",
+            )
+            mw.inspector.inspect_conversation.return_value = Decision.allow()
+
+            agent = create_agent(
+                model=FakeListChatModel(responses=["first answer", "second answer"]),
+                middleware=[mw],
+                system_prompt="Be helpful.",
+                checkpointer=InMemorySaver(),
+            )
+            config = {"configurable": {"thread_id": "thread-1"}}
+
+            agent.invoke({"messages": [{"role": "user", "content": "first user"}]}, config=config)
+            agent.invoke({"messages": [{"role": "user", "content": "second user"}]}, config=config)
+
+        seen = [
+            self._inspection_messages(call.args[0])
+            for call in mw.inspector.inspect_conversation.call_args_list
+        ]
+        assert seen == [
+            [("user", "first user")],
+            [("user", "first user"), ("assistant", "first answer")],
+            [("user", "first user"), ("assistant", "first answer"), ("user", "second user")],
+            [
+                ("user", "first user"),
+                ("assistant", "first answer"),
+                ("user", "second user"),
+                ("assistant", "second answer"),
+            ],
+        ]
 
     @pytest.mark.asyncio
     async def test_abefore_model_uses_async_inspector(self):
