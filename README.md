@@ -76,6 +76,7 @@ agent = create_agent(
             region="us-west-2",
             mode="enforce",       # "enforce" | "monitor" | "off"
             fail_open=True,
+            inspection_scope="latest_turn",  # default
         ),
     ],
 )
@@ -94,6 +95,17 @@ agent = create_agent(
 | `user` | `str` | `None` | User identity for audit |
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(InspectResponse, direction) -> None` callback |
+| `inspection_scope` | `str` | `"latest_turn"` | `"latest_turn"` inspects only the newest conversation window for each hook; `"thread"` reinspects the full retained transcript |
+
+#### Inspection scope
+
+- `latest_turn` (default)
+  - `before_model` inspects only the new messages added since the previous assistant output.
+  - `after_model` inspects only the current turn window, including the newly generated assistant response.
+  - This avoids an older violation poisoning later safe turns forever.
+- `thread`
+  - Reinspects the full retained `state["messages"]` transcript on every hook.
+  - Use this only when you explicitly want transcript-wide enforcement.
 
 #### How it works
 
@@ -139,6 +151,7 @@ agent = create_agent(
             endpoint="https://us.api.inspect.aidefense.security.cisco.com",
             retry_total=3,
             retry_backoff=1.0,
+            inspection_scope="latest_turn",  # default
         ),
     ],
 )
@@ -165,6 +178,7 @@ agent = create_agent(
 | `user` | `str` | `None` | User identity |
 | `src_app` | `str` | `None` | Source application name |
 | `on_violation` | `callable` | `None` | `(Decision, direction) -> None` callback |
+| `inspection_scope` | `str` | `"latest_turn"` | `"latest_turn"` inspects only the newest conversation window for each hook; `"thread"` reinspects the full retained transcript |
 
 ## Tool / MCP Inspection
 
@@ -256,6 +270,7 @@ export AIDEFENSE_REGION=us-west-2
 export AIDEFENSE_MODE=enforce
 export AIDEFENSE_FAIL_OPEN=true
 export AIDEFENSE_TIMEOUT=30
+export AIDEFENSE_INSPECTION_SCOPE=latest_turn
 ```
 
 ```python

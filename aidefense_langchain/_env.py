@@ -57,6 +57,10 @@ def direct_kwargs_from_env(env: Mapping[str, str] | None = None) -> dict[str, An
     if src_app:
         kwargs["src_app"] = src_app
 
+    inspection_scope = values.get("AIDEFENSE_INSPECTION_SCOPE")
+    if inspection_scope:
+        kwargs["inspection_scope"] = inspection_scope
+
     return kwargs
 
 
@@ -99,6 +103,10 @@ def agentsec_kwargs_from_env(env: Mapping[str, str] | None = None) -> dict[str, 
     src_app = values.get("AIDEFENSE_SRC_APP")
     if src_app:
         kwargs["src_app"] = src_app
+
+    inspection_scope = values.get("AIDEFENSE_INSPECTION_SCOPE")
+    if inspection_scope:
+        kwargs["inspection_scope"] = inspection_scope
 
     return kwargs
 

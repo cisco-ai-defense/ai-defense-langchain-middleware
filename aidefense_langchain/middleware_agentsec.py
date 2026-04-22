@@ -40,6 +40,7 @@ from aidefense.runtime.agentsec.inspectors.api_llm import LLMInspector
 
 from ._env import agentsec_kwargs_from_env
 from ._content import flatten_content_text
+from ._inspection_scope import scoped_langchain_messages, validate_inspection_scope
 
 logger = logging.getLogger("aidefense.langchain.agentsec")
 
@@ -122,6 +123,10 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         Source app name for every request.
     on_violation : callable, optional
         Callback ``(Decision, direction: str) -> None`` on every violation.
+    inspection_scope : str
+        ``"latest_turn"`` (default) inspects only the newest conversation
+        window for each hook. ``"thread"`` reinspects the full retained
+        LangChain message history on every hook.
 
     Example
     -------
@@ -162,6 +167,7 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         user: Optional[str] = None,
         src_app: Optional[str] = None,
         on_violation: Optional[Callable[[Decision, str], None]] = None,
+        inspection_scope: str = "latest_turn",
     ) -> None:
         super().__init__()
         if mode not in ("enforce", "monitor", "off"):
@@ -169,6 +175,7 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
 
         self.mode = mode
         self.on_violation = on_violation
+        self.inspection_scope = validate_inspection_scope(inspection_scope)
         self._metadata = _build_metadata(user=user, src_app=src_app)
 
         self.inspector = LLMInspector(
@@ -201,7 +208,13 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_dicts(state["messages"])
+        messages = _langchain_messages_to_dicts(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="input",
+            )
+        )
         decision = self.inspector.inspect_conversation(messages, self._metadata)
         return self._process_decision(decision, "input")
 
@@ -213,7 +226,13 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_dicts(state["messages"])
+        messages = _langchain_messages_to_dicts(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="input",
+            )
+        )
         decision = await self.inspector.ainspect_conversation(messages, self._metadata)
         return self._process_decision(decision, "input")
 
@@ -225,7 +244,13 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_dicts(state["messages"])
+        messages = _langchain_messages_to_dicts(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="output",
+            )
+        )
         decision = self.inspector.inspect_conversation(messages, self._metadata)
         return self._process_decision(decision, "output")
 
@@ -237,7 +262,13 @@ class AIDefenseAgentsecMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_dicts(state["messages"])
+        messages = _langchain_messages_to_dicts(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="output",
+            )
+        )
         decision = await self.inspector.ainspect_conversation(messages, self._metadata)
         return self._process_decision(decision, "output")
 
