@@ -166,7 +166,17 @@ class _Guard:
         self.mcp_client = MCPInspectionClient(api_key=api_key, config=config)
 
     def inspect_messages(self, messages: List[BaseMessage], direction: str) -> None:
-        ad_messages = _langchain_messages_to_aidefense(messages)
+        # Only inspect human/ai/system messages with non-empty string content.
+        # AIMessage with tool_calls may have empty content; ToolMessage is a
+        # tool result already inspected by AIDefenseToolNode — both would fail
+        # SDK validation ("each message must have non-empty string content").
+        inspectable = [
+            m for m in messages
+            if getattr(m, "type", "") in _LC_TYPE_TO_ROLE
+            and isinstance(m.content, str)
+            and m.content.strip()
+        ]
+        ad_messages = _langchain_messages_to_aidefense(inspectable)
         if not ad_messages:
             return
         try:
