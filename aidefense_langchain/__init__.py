@@ -47,12 +47,20 @@ from .middleware_chat_client import AIDefenseMiddleware
 from .middleware_agentsec import AIDefenseAgentsecMiddleware
 from .middleware_tool_inspection import AIDefenseToolMiddleware
 from .middleware_tool_agentsec import AIDefenseAgentsecToolMiddleware
-from .react_agent import (
-    AIDefenseHooks,
-    AIDefenseToolNode,
-    AIDefenseViolationError,
-    create_aidefense_react_agent,
-)
+try:
+    from .react_agent import (
+        AIDefenseHooks,
+        AIDefenseToolNode,
+        AIDefenseViolationError,
+        create_aidefense_react_agent,
+    )
+except ImportError as _react_err:
+    raise ImportError(
+        "aidefense_langchain's create_react_agent integration requires "
+        "langgraph>=0.2.27 (for pre_model_hook, post_model_hook, and "
+        "ToolNode.wrap_tool_call). Upgrade with: "
+        "pip install 'langgraph>=0.2.27'"
+    ) from _react_err
 
 __all__ = [
     # create_agent middleware
