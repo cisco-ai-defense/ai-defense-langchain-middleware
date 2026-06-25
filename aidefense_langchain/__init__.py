@@ -32,6 +32,13 @@ Tool / MCP inspection middleware (``wrap_tool_call``):
 4. ``AIDefenseAgentsecToolMiddleware`` — built on agentsec's ``MCPInspector``.
    Adds retry, fail-open/closed, and agentsec configuration inheritance.
 
+Callback handler (``callbacks=`` parameter — works with ``create_react_agent``):
+
+5. ``AIDefenseCallbackHandler`` — built on ``ChatInspectionClient`` +
+   ``MCPInspectionClient``.  Drop-in for any LangChain construct that accepts
+   ``callbacks=``, including agents built with ``create_react_agent``.
+   Raises ``AIDefenseViolationError`` in enforce mode.
+
 All middleware enforce *block*, *monitor*, or *off* modes via LangChain's
 native ``jump_to`` / state-update patterns.
 """
@@ -40,10 +47,23 @@ from .middleware_chat_client import AIDefenseMiddleware
 from .middleware_agentsec import AIDefenseAgentsecMiddleware
 from .middleware_tool_inspection import AIDefenseToolMiddleware
 from .middleware_tool_agentsec import AIDefenseAgentsecToolMiddleware
+from .react_agent import (
+    AIDefenseHooks,
+    AIDefenseToolNode,
+    AIDefenseViolationError,
+    create_aidefense_react_agent,
+)
 
 __all__ = [
+    # create_agent middleware
     "AIDefenseMiddleware",
     "AIDefenseAgentsecMiddleware",
     "AIDefenseToolMiddleware",
     "AIDefenseAgentsecToolMiddleware",
+    # create_react_agent primitives
+    "AIDefenseHooks",
+    "AIDefenseToolNode",
+    "AIDefenseViolationError",
+    # create_react_agent convenience wrapper
+    "create_aidefense_react_agent",
 ]
