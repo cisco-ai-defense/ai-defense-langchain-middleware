@@ -44,7 +44,7 @@ classifiers = [
 dependencies = [
     "cisco-aidefense-sdk>=2.1.0",
     "langchain>=1.0.0",
-    "langgraph>=0.2.0",
+    "langgraph>=0.2.27",
 ]
 
 [project.optional-dependencies]

@@ -537,8 +537,18 @@ class AIDefenseToolNode(ToolNode):
         request: ToolCallRequest,
         execute: Callable,
     ) -> Any:
-        # async path delegates to the sync inspector (inspection calls are blocking)
-        return self._wrap_tool_call(request, execute)
+        if self._aidefense_guard.mode == "off":
+            return await execute(request)
+
+        tool_name = request.tool_call["name"]
+        arguments = request.tool_call.get("args", {})
+
+        self._aidefense_guard.inspect_tool_request(tool_name, arguments)
+        result = await execute(request)
+        if hasattr(result, "content"):
+            self._aidefense_guard.inspect_tool_response(tool_name, result.content)
+
+        return result
 
     def close(self) -> None:
         """Release underlying HTTP session resources."""
@@ -648,15 +658,29 @@ def create_aidefense_react_agent(
 
     hooks = AIDefenseHooks(**shared_kwargs)
 
-    # If the caller already passed a ToolNode, use it as-is
+    # If the caller already passed a ToolNode, use it as-is.
     if isinstance(tools, ToolNode):
-        tool_node = tools
+        final_tools: Any = tools
     else:
-        tool_node = AIDefenseToolNode(list(tools), **shared_kwargs)
+        tool_list = list(tools)
+        # Provider built-in tool dicts (e.g. OpenAI/Anthropic native tools) are
+        # not executable by ToolNode — separate them and forward directly to
+        # create_react_agent which knows how to bind them to the model.
+        callable_tools = [t for t in tool_list if not isinstance(t, dict)]
+        dict_tools = [t for t in tool_list if isinstance(t, dict)]
+
+        if callable_tools:
+            ad_node = AIDefenseToolNode(callable_tools, **shared_kwargs)
+            # If there are also dict tools, pass the ToolNode + dicts as a list
+            # so create_react_agent can register both.
+            final_tools = [ad_node] + dict_tools if dict_tools else ad_node
+        else:
+            # No executable tools — pass dict tools straight through.
+            final_tools = dict_tools
 
     return _create_react_agent(
         model,
-        tool_node,
+        final_tools,
         pre_model_hook=hooks.pre_model_hook,
         post_model_hook=hooks.post_model_hook,
         **agent_kwargs,
