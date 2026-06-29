@@ -1,12 +1,18 @@
 # langchain-cisco-aidefense
 
-[![PyPI version](https://img.shields.io/pypi/v/langchain-cisco-aidefense.svg)](https://pypi.org/project/langchain-cisco-aidefense/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+Runtime security inspection for LangChain and LangGraph agents, powered by
+[Cisco AI Defense](https://developer.cisco.com/docs/ai-defense-inspection/).
 
-LangChain agent middleware for [Cisco AI Defense](https://developer.cisco.com/docs/ai-defense/overview/), providing runtime security inspection of LLM inputs/outputs **and** tool/MCP calls.
+Every LLM prompt, model response, and tool call is inspected against your
+organization's AI Defense policies — detecting prompt injection, PII leakage,
+jailbreaks, and more — before the data leaves your control plane.
 
-Detects prompt injection, jailbreaks, PII leakage, toxic content, and unsafe tool usage — directly within the LangChain agent loop.
+## Requirements
+
+- Python 3.10+
+- `cisco-aidefense-sdk >= 2.1.0`
+- `langchain >= 1.0.0`
+- `langgraph >= 0.2.27` *(required for `create_react_agent` support)*
 
 ## Installation
 
@@ -14,308 +20,303 @@ Detects prompt injection, jailbreaks, PII leakage, toxic content, and unsafe too
 pip install langchain-cisco-aidefense
 ```
 
-## Middleware Overview
-
-Four middleware implementations are provided:
-
-### LLM Inspection (`before_model` / `after_model`)
-
-| Middleware | Built on | Best for |
-|---|---|---|
-| `AIDefenseMiddleware` | `ChatInspectionClient` | New integrations — lightweight, no global state |
-| `AIDefenseAgentsecMiddleware` | agentsec `LLMInspector` | When you need agentsec's retry/backoff machinery |
-
-### Tool / MCP Inspection (`wrap_tool_call`)
-
-| Middleware | Built on | Best for |
-|---|---|---|
-| `AIDefenseToolMiddleware` | `MCPInspectionClient` | New integrations — tool/MCP call inspection |
-| `AIDefenseAgentsecToolMiddleware` | agentsec `MCPInspector` | When you need agentsec's retry/backoff machinery |
-
-## Quick Start
+## Quick start
 
 ```bash
-pip install langchain-cisco-aidefense langchain-openai
+export AIDEFENSE_API_KEY="<your-key>"
+export OPENAI_API_KEY="<your-key>"
 ```
+
+### For `create_react_agent` (LangGraph prebuilt)
 
 ```python
-from aidefense_langchain import AIDefenseMiddleware
-from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from aidefense_langchain import create_aidefense_react_agent, AIDefenseViolationError
 
-agent = create_agent(
-    model="openai:gpt-4.1",
+@tool
+def get_weather(city: str) -> str:
+    """Return current weather for a city."""
+    return f"It's 72°F and sunny in {city}!"
+
+agent = create_aidefense_react_agent(
+    model=ChatOpenAI(model="gpt-4o-mini"),
     tools=[get_weather],
-    middleware=[
-        AIDefenseMiddleware(
-            api_key="your-cisco-ai-defense-api-key",
-            region="us-west-2",
-            mode="enforce",
-        ),
-    ],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="enforce",
 )
 
-result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})
+try:
+    result = agent.invoke({"messages": [("user", "What's the weather in Seattle?")]})
+    print(result["messages"][-1].content)
+except AIDefenseViolationError as e:
+    print(f"Blocked at '{e.direction}': {e}")
 ```
 
-## LLM Inspection
-
-### `AIDefenseMiddleware` (Recommended)
-
-Uses `ChatInspectionClient` directly. Self-contained configuration, no global state, no monkey-patching.
+### For `create_agent` (LangChain LCEL)
 
 ```python
-from aidefense_langchain import AIDefenseMiddleware
+from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
+from aidefense_langchain import AIDefenseMiddleware
 
-agent = create_agent(
-    model="openai:gpt-4.1",
+llm = ChatOpenAI(model="gpt-4o-mini")
+middleware = AIDefenseMiddleware(api_key="<AIDEFENSE_API_KEY>", mode="enforce")
+llm_with_guard = middleware.apply(llm)
+```
+
+---
+
+## `create_react_agent` integration
+
+Added in **v1.1.0**.  Provides two usage patterns.
+
+### Option A — Primitives (maximum control)
+
+Use `AIDefenseHooks` and `AIDefenseToolNode` directly with a plain
+`create_react_agent` call.  This is the right choice when you need to share
+hook or tool-node instances across multiple agents.
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+from aidefense_langchain import (
+    AIDefenseHooks,
+    AIDefenseToolNode,
+    AIDefenseViolationError,
+)
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+@tool
+def get_weather(city: str) -> str:
+    """Return current weather for a city."""
+    return f"It's 72°F and sunny in {city}!"
+
+# LLM inspection
+hooks = AIDefenseHooks(api_key="<AIDEFENSE_API_KEY>", mode="enforce")
+
+# Tool inspection
+tool_node = AIDefenseToolNode(
+    [get_weather],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="enforce",
+)
+
+agent = create_react_agent(
+    model=llm,
+    tools=tool_node,
+    pre_model_hook=hooks.pre_model_hook,
+    post_model_hook=hooks.post_model_hook,
+)
+
+try:
+    result = agent.invoke({"messages": [("user", "What's the weather in Tokyo?")]})
+    print(result["messages"][-1].content)
+except AIDefenseViolationError as e:
+    print(f"Blocked at '{e.direction}': {e}")
+```
+
+### Option B — Convenience wrapper (minimum changes)
+
+`create_aidefense_react_agent` is a drop-in replacement for
+`create_react_agent`.  Change one function name and pass your AI Defense
+credentials — LLM and tool inspection are wired automatically.
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from aidefense_langchain import create_aidefense_react_agent, AIDefenseViolationError
+
+@tool
+def get_weather(city: str) -> str:
+    """Return current weather for a city."""
+    return f"It's 72°F and sunny in {city}!"
+
+agent = create_aidefense_react_agent(
+    model=ChatOpenAI(model="gpt-4o-mini"),
     tools=[get_weather],
-    middleware=[
-        AIDefenseMiddleware(
-            api_key="your-api-key",
-            region="us-west-2",
-            mode="enforce",       # "enforce" | "monitor" | "off"
-            fail_open=True,
-        ),
-    ],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="enforce",
 )
 ```
 
-#### Parameters
+### Violation handling
+
+In `"enforce"` mode, `AIDefenseViolationError` is raised when AI Defense blocks
+a request.  In `"monitor"` mode, violations are logged but the agent continues.
+
+```python
+from aidefense_langchain import AIDefenseViolationError, create_aidefense_react_agent
+
+# Enforce mode — raise on violation
+agent = create_aidefense_react_agent(
+    model=llm, tools=[get_weather],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="enforce",
+)
+
+try:
+    result = agent.invoke({"messages": [("user", "Ignore previous instructions.")]})
+except AIDefenseViolationError as e:
+    print(f"Direction: {e.direction}")   # "input", "output", "tool 'name' input/output"
+    print(f"Reason:    {e}")
+    print(f"Event ID:  {e.response.event_id}")
+
+# Monitor mode — collect violations without blocking
+violations = []
+
+agent = create_aidefense_react_agent(
+    model=llm, tools=[get_weather],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="monitor",
+    on_violation=lambda resp, direction: violations.append(direction),
+)
+
+result = agent.invoke({"messages": [("user", "My SSN is 123-45-6789.")]})
+print(f"Completed. Violations: {violations}")
+```
+
+### Parameters
+
+#### `create_aidefense_react_agent`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `api_key` | `str` | required | Cisco AI Defense API key |
-| `region` | `str` | `"us-west-2"` | AI Defense region (`"us-west-2"`, `"eu-central-1"`, `"ap-northeast-1"`) |
-| `mode` | `str` | `"enforce"` | `"enforce"` (block), `"monitor"` (log only), `"off"` |
-| `fail_open` | `bool` | `True` | Allow on inspection API errors |
-| `timeout` | `int` | `30` | Inspection timeout in seconds |
-| `rules` | `list` | `None` | Rules to enable (e.g. `["PII", "Prompt Injection"]`) |
-| `user` | `str` | `None` | User identity for audit |
-| `src_app` | `str` | `None` | Source application name |
-| `on_violation` | `callable` | `None` | `(InspectResponse, direction) -> None` callback |
+| `model` | `BaseLanguageModel` | required | The LLM to use. |
+| `tools` | `list \| ToolNode` | required | Tools or a pre-built `AIDefenseToolNode`. |
+| `api_key` | `str` | required | Cisco AI Defense API key. |
+| `region` | `str` | `"us-west-2"` | AI Defense region. |
+| `mode` | `str` | `"enforce"` | `"enforce"`, `"monitor"`, or `"off"`. |
+| `on_violation` | `callable` | `None` | Called with `(InspectResponse, direction)` on every violation before raising. |
+| `**kwargs` | | | Forwarded to `create_react_agent` (e.g. `state_schema`, `prompt`). |
 
-#### How it works
-
-```
-User message
-    |
-    v
-+--------------------------------------------------+
-|  before_model hook                               |
-|  -> ChatInspectionClient.inspect_conversation()  |
-|  -> if not safe and mode="enforce": jump_to=end  |
-+--------------------------------------------------+
-    |
-    v
-  LLM call
-    |
-    v
-+--------------------------------------------------+
-|  after_model hook                                |
-|  -> ChatInspectionClient.inspect_conversation()  |
-|  -> if not safe and mode="enforce": jump_to=end  |
-+--------------------------------------------------+
-    |
-    v
-Agent response
-```
-
-### `AIDefenseAgentsecMiddleware`
-
-Uses agentsec's `LLMInspector` — gets retry with exponential backoff and fail-open semantics.
-
-```python
-from aidefense_langchain import AIDefenseAgentsecMiddleware
-from langchain.agents import create_agent
-
-agent = create_agent(
-    model="openai:gpt-4.1",
-    tools=[get_weather],
-    middleware=[
-        AIDefenseAgentsecMiddleware(
-            mode="enforce",
-            api_key="your-api-key",
-            endpoint="https://us.api.inspect.aidefense.security.cisco.com",
-            retry_total=3,
-            retry_backoff=1.0,
-        ),
-    ],
-)
-```
-
-> **Do not call `agentsec.protect()` when using middleware.** The middleware
-> handles all inspection directly. Calling `protect()` would activate
-> monkey-patching on the underlying LLM SDK, causing every request to be
-> inspected **twice** — once by the patched SDK and once by the middleware —
-> doubling latency and API calls with no security benefit.
-
-#### Parameters
+#### `AIDefenseHooks`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `mode` | `str` | `"enforce"` | `"enforce"`, `"monitor"`, or `"off"` |
-| `api_key` | `str` | from state/env | AI Defense API key |
-| `endpoint` | `str` | from state/env | AI Defense API endpoint |
-| `fail_open` | `bool` | `True` | Allow on inspection errors |
-| `timeout_ms` | `int` | from state | Timeout in milliseconds |
-| `retry_total` | `int` | `1` | Retry attempts |
-| `retry_backoff` | `float` | `0.0` | Backoff factor in seconds |
-| `rules` | `list` | `None` | Inspection rules |
-| `user` | `str` | `None` | User identity |
-| `src_app` | `str` | `None` | Source application name |
-| `on_violation` | `callable` | `None` | `(Decision, direction) -> None` callback |
+| `api_key` | `str` | required | Cisco AI Defense API key. |
+| `region` | `str` | `"us-west-2"` | AI Defense region. |
+| `mode` | `str` | `"enforce"` | `"enforce"`, `"monitor"`, or `"off"`. |
+| `on_violation` | `callable` | `None` | Called with `(InspectResponse, direction)` on every violation. |
 
-## Tool / MCP Inspection
+#### `AIDefenseToolNode`
 
-### `AIDefenseToolMiddleware` (Recommended for tools)
-
-Uses `MCPInspectionClient` to inspect tool call requests (name + arguments) and tool call results.
-
-```python
-from aidefense_langchain import AIDefenseMiddleware, AIDefenseToolMiddleware
-from langchain.agents import create_agent
-
-agent = create_agent(
-    model="openai:gpt-4.1",
-    tools=[search_db, send_email],
-    middleware=[
-        AIDefenseMiddleware(api_key="your-key", mode="enforce"),
-        AIDefenseToolMiddleware(api_key="your-key", mode="enforce"),
-    ],
-)
-```
-
-### `AIDefenseAgentsecToolMiddleware`
-
-Uses agentsec's `MCPInspector` with retry, backoff, and fail-open support.
-
-```python
-from aidefense_langchain import AIDefenseAgentsecMiddleware, AIDefenseAgentsecToolMiddleware
-
-agent = create_agent(
-    model="openai:gpt-4.1",
-    tools=[read_file, execute_query],
-    middleware=[
-        AIDefenseAgentsecMiddleware(mode="enforce", api_key="your-key"),
-        AIDefenseAgentsecToolMiddleware(mode="enforce", api_key="your-key"),
-    ],
-)
-```
-
-### Tool Middleware Parameters
+All `AIDefenseHooks` parameters, plus:
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `api_key` | `str` | required / from env | Cisco AI Defense API key |
-| `region` | `str` | `"us-west-2"` | AI Defense region (ChatClient variant only) |
-| `mode` | `str` | `"enforce"` | `"enforce"`, `"monitor"`, or `"off"` |
-| `fail_open` | `bool` | `True` | Allow on inspection API errors |
-| `inspect_requests` | `bool` | `True` | Inspect tool call requests before execution |
-| `inspect_responses` | `bool` | `True` | Inspect tool results after execution |
-| `on_violation` | `callable` | `None` | Violation callback |
+| `tools` | `Sequence` | required | Callable tools (not provider built-in dicts). |
+| `handle_tool_errors` | `bool` | `False` | Keep `False` so violations propagate to the caller. |
 
-### How tool inspection works
+---
 
-```
-Tool call (from LLM)
-    |
-    v
-+--------------------------------------------------+
-|  wrap_tool_call -- PRE-CALL inspection           |
-|  -> MCPInspectionClient.inspect_tool_call()      |
-|  -> if not safe and mode="enforce": return block |
-+--------------------------------------------------+
-    |
-    v
-  Tool executes
-    |
-    v
-+--------------------------------------------------+
-|  wrap_tool_call -- POST-CALL inspection          |
-|  -> MCPInspectionClient.inspect_response()       |
-|  -> if not safe and mode="enforce": return block |
-+--------------------------------------------------+
-    |
-    v
-Tool result returned to agent
-```
+## `create_agent` integration
 
-This covers **all** tool types:
-- LangChain tools (`@tool` decorated functions)
-- MCP tools registered via LangChain's MCP integration
-- Any tool executed through the agent's tool node
+For agents built with LangChain's `create_agent`, use the middleware classes
+directly.
 
-## Environment Variables
-
-The middleware can also be configured via environment variables (used by `from_env()` class methods):
-
-```bash
-export AIDEFENSE_API_KEY=your-api-key
-export AIDEFENSE_REGION=us-west-2
-export AIDEFENSE_MODE=enforce
-export AIDEFENSE_FAIL_OPEN=true
-export AIDEFENSE_TIMEOUT=30
-```
+### LLM inspection
 
 ```python
+from langchain_openai import ChatOpenAI
 from aidefense_langchain import AIDefenseMiddleware
 
-middleware = AIDefenseMiddleware.from_env()
+llm = ChatOpenAI(model="gpt-4o-mini")
+middleware = AIDefenseMiddleware(api_key="<AIDEFENSE_API_KEY>", mode="enforce")
+protected_llm = middleware.apply(llm)
 ```
 
-## Comparison
+### Tool / MCP inspection
 
-| Criteria | `AIDefenseMiddleware` | `AIDefenseAgentsecMiddleware` |
-|---|:---:|:---:|
-| No global state / side effects | Yes | No (uses `_state`) |
-| Self-contained config | Yes | Yes (pass explicitly) |
-| Built-in retry + backoff | Via `Config` | Custom |
-| Built-in fail-open | In middleware | In inspector |
-| `inspect_prompt` / `inspect_response` | Yes | No (`inspect_conversation` only) |
-| Dependency footprint | Lighter (`aidefense.runtime`) | Heavier (`aidefense.runtime.agentsec`) |
+```python
+from aidefense_langchain import AIDefenseToolMiddleware
 
-**Recommendation**: Use `AIDefenseMiddleware` for new projects. Use `AIDefenseAgentsecMiddleware` when you need agentsec's retry/backoff machinery.
+tool_middleware = AIDefenseToolMiddleware(api_key="<AIDEFENSE_API_KEY>", mode="enforce")
+protected_tool = tool_middleware.wrap(my_tool)
+```
 
-## Enforcement Modes
+### Agentsec variants
 
-| Mode | Behavior |
-|---|---|
-| `enforce` | Block violations — agent returns a "blocked" message via `jump_to: "end"` |
-| `monitor` | Log violations and invoke `on_violation` callback; never blocks |
-| `off` | Skip inspection entirely |
+`AIDefenseAgentsecMiddleware` and `AIDefenseAgentsecToolMiddleware` are
+drop-in alternatives that delegate to agentsec's `LLMInspector` /
+`MCPInspector` for retry logic, fail-open/closed behavior, and configuration
+pulled from agent state.
 
-## Fail-Open Behavior
+---
 
-When `fail_open=True` (default) and the AI Defense inspection API is unreachable:
-- The request is **allowed** to proceed
-- A warning is logged
+## Azure OpenAI
 
-When `fail_open=False`:
-- The request is **blocked** (or an exception is raised)
+`AzureChatOpenAI` works as a drop-in for `ChatOpenAI`.  On Cisco macOS
+machines where Python's bundled `certifi` store doesn't include the corporate
+CA, pass a merged cert bundle to `http_client`:
+
+```python
+import os, subprocess, tempfile, certifi, httpx
+from langchain_openai import AzureChatOpenAI
+
+def build_cert_bundle() -> str:
+    try:
+        certs = subprocess.check_output(
+            ["/usr/bin/security", "find-certificate", "-a", "-p",
+             "/Library/Keychains/System.keychain"],
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return certifi.where()
+    with open(certifi.where(), "rb") as f:
+        bundle = f.read() + certs
+    tmp = tempfile.NamedTemporaryFile(suffix=".pem", delete=False)
+    tmp.write(bundle); tmp.close()
+    return tmp.name
+
+cert = build_cert_bundle()
+os.environ["SSL_CERT_FILE"] = cert
+
+llm = AzureChatOpenAI(
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    api_version="2024-08-01-preview",
+    http_client=httpx.Client(verify=cert),
+    http_async_client=httpx.AsyncClient(verify=cert),
+)
+```
+
+See `examples/10_azure_openai_create_react_agent.py` for a complete runnable
+example.
+
+---
 
 ## Examples
 
-| # | File | Description |
+| File | Description |
+|---|---|
+| `examples/09_callback_handler_create_react_agent.py` | `create_react_agent` with OpenAI (Options A & B) |
+| `examples/10_azure_openai_create_react_agent.py` | Same, with Azure OpenAI + macOS SSL fix |
+
+---
+
+## Version compatibility
+
+| Package | Minimum | Notes |
 |---|---|---|
-| 1 | `01_chat_client_enforce.py` | ChatClient middleware — enforce mode (block violations) |
-| 2 | `02_chat_client_monitor.py` | ChatClient middleware — monitor mode with violation callback |
-| 3 | `03_chat_client_with_rules.py` | ChatClient middleware — specific rules (PII, Prompt Injection) |
-| 4 | `04_agentsec_enforce.py` | Agentsec middleware — enforce mode with retry config |
-| 5 | `05_composed_middleware.py` | AI Defense + custom logging middleware composed together |
-| 6 | `06_side_by_side.py` | Same request through both middleware — side-by-side comparison |
-| 7 | `07_tool_inspection_enforce.py` | Tool inspection — LLM + tool call inspection combined |
-| 8 | `08_tool_inspection_agentsec.py` | Agentsec tool inspection — MCPInspector with retry |
+| `cisco-aidefense-sdk` | `>=2.1.0` | Required for `ChatInspectionClient` / `MCPInspectionClient` |
+| `langchain` | `>=1.0.0` | |
+| `langgraph` | `>=0.2.27` | Required for `pre_model_hook`, `post_model_hook`, `ToolNode.wrap_tool_call` |
 
-## Development
+**LangGraph V2.0 note:** LangGraph V1.0 deprecated `create_react_agent` in
+`langgraph.prebuilt` — it still works but emits a `DeprecationWarning`. In
+LangGraph V2.0 the import will move to `langchain.agents`. Update your code
+when you upgrade.
 
-```bash
-git clone https://github.com/cisco-ai-defense/ai-defense-langchain-middleware.git
-cd ai-defense-langchain-middleware
-pip install -e ".[dev,examples]"
-pytest
-```
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE) for details.
+Apache 2.0 — see `pyproject.toml`.
