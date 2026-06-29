@@ -166,6 +166,22 @@ class TestPreModelHook:
         h.pre_model_hook({"messages": []})
         h._guard.chat_client.inspect_conversation.assert_not_called()
 
+    def test_multimodal_content_is_inspected(self):
+        # HumanMessage with list content (e.g. vision input) must not be skipped
+        h = _make_hooks(mode="enforce")
+        h._guard.chat_client.inspect_conversation.return_value = _safe()
+        state = {"messages": [HumanMessage(content=[{"type": "text", "text": "hello"}])]}
+        h.pre_model_hook(state)
+        h._guard.chat_client.inspect_conversation.assert_called_once()
+
+    def test_multimodal_content_violation_blocks_in_enforce(self):
+        h = _make_hooks(mode="enforce")
+        h._guard.chat_client.inspect_conversation.return_value = _unsafe()
+        state = {"messages": [HumanMessage(content=[{"type": "text", "text": "inject"}])]}
+        with pytest.raises(AIDefenseViolationError) as exc:
+            h.pre_model_hook(state)
+        assert exc.value.direction == "input"
+
     def test_system_message_role_mapped(self):
         h = _make_hooks(mode="enforce")
         h._guard.chat_client.inspect_conversation.return_value = _safe()
@@ -358,13 +374,36 @@ class TestCreateAIDefenseReactAgent:
         from langgraph.prebuilt import ToolNode
         existing_node = MagicMock(spec=ToolNode)
         with patch(PATCH_CHAT), patch(PATCH_MCP), \
-             patch("aidefense_langchain.react_agent._create_react_agent") as mock_create:
+             patch("aidefense_langchain.react_agent._create_react_agent") as mock_create, \
+             pytest.warns(UserWarning, match="plain ToolNode"):
             mock_create.return_value = MagicMock()
             create_aidefense_react_agent(
                 MagicMock(), existing_node, api_key="key"
             )
             args, _ = mock_create.call_args
             assert args[1] is existing_node
+
+    def test_plain_tool_node_emits_warning(self):
+        from langgraph.prebuilt import ToolNode
+        plain_node = MagicMock(spec=ToolNode)
+        with patch(PATCH_CHAT), patch(PATCH_MCP), \
+             patch("aidefense_langchain.react_agent._create_react_agent") as mock_create, \
+             pytest.warns(UserWarning, match="plain ToolNode"):
+            mock_create.return_value = MagicMock()
+            create_aidefense_react_agent(MagicMock(), plain_node, api_key="key")
+
+    def test_dict_tools_bound_to_model_not_tool_node(self):
+        model_mock = MagicMock()
+        model_mock.bind_tools.return_value = model_mock
+        dict_tool = {"type": "function", "function": {"name": "native_fn"}}
+        with patch(PATCH_CHAT), patch(PATCH_MCP), \
+             patch("aidefense_langchain.react_agent._create_react_agent") as mock_create:
+            mock_create.return_value = MagicMock()
+            create_aidefense_react_agent(model_mock, [dict_tool], api_key="key")
+        model_mock.bind_tools.assert_called_once_with([dict_tool])
+        # AIDefenseToolNode should be passed as tools (empty callable list → empty list)
+        args, _ = mock_create.call_args
+        assert args[1] == []  # no executable tools
 
     def test_extra_kwargs_forwarded_to_create_react_agent(self):
         with patch(PATCH_CHAT), patch(PATCH_MCP), \

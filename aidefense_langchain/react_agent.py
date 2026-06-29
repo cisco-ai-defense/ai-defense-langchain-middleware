@@ -65,7 +65,9 @@ execution continues.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import warnings
 from typing import Any, Callable, List, Mapping, Optional, Sequence, Union
 
 from langchain_core.messages import BaseMessage
@@ -166,15 +168,17 @@ class _Guard:
         self.mcp_client = MCPInspectionClient(api_key=api_key, config=config)
 
     def inspect_messages(self, messages: List[BaseMessage], direction: str) -> None:
-        # Only inspect human/ai/system messages with non-empty string content.
-        # AIMessage with tool_calls may have empty content; ToolMessage is a
-        # tool result already inspected by AIDefenseToolNode — both would fail
-        # SDK validation ("each message must have non-empty string content").
+        # Only inspect human/ai/system messages with non-empty text content.
+        # - ToolMessage is skipped: already inspected by AIDefenseToolNode.
+        # - AIMessage with tool_calls and empty content is skipped: would fail
+        #   SDK validation ("each message must have non-empty string content").
+        # - Multimodal content (list of content blocks) is supported via
+        #   flatten_content_text, which extracts text from {"type":"text",...}
+        #   blocks — so structured content is inspected, not silently skipped.
         inspectable = [
             m for m in messages
             if getattr(m, "type", "") in _LC_TYPE_TO_ROLE
-            and isinstance(m.content, str)
-            and m.content.strip()
+            and flatten_content_text(m.content).strip()
         ]
         ad_messages = _langchain_messages_to_aidefense(inspectable)
         if not ad_messages:
@@ -543,10 +547,16 @@ class AIDefenseToolNode(ToolNode):
         tool_name = request.tool_call["name"]
         arguments = request.tool_call.get("args", {})
 
-        self._aidefense_guard.inspect_tool_request(tool_name, arguments)
+        # SDK inspection calls are blocking HTTP — offload to a thread so
+        # concurrent async tool calls do not serialize on the event loop.
+        await asyncio.to_thread(
+            self._aidefense_guard.inspect_tool_request, tool_name, arguments
+        )
         result = await execute(request)
         if hasattr(result, "content"):
-            self._aidefense_guard.inspect_tool_response(tool_name, result.content)
+            await asyncio.to_thread(
+                self._aidefense_guard.inspect_tool_response, tool_name, result.content
+            )
 
         return result
 
@@ -658,25 +668,36 @@ def create_aidefense_react_agent(
 
     hooks = AIDefenseHooks(**shared_kwargs)
 
-    # If the caller already passed a ToolNode, use it as-is.
+    # If the caller already passed a ToolNode, use it as-is but warn when it
+    # is not an AIDefenseToolNode — tool call arguments and responses will not
+    # be inspected in that case.
     if isinstance(tools, ToolNode):
+        if not isinstance(tools, AIDefenseToolNode):
+            warnings.warn(
+                "create_aidefense_react_agent received a plain ToolNode — tool call "
+                "arguments and responses will NOT be inspected by AI Defense. Pass an "
+                "AIDefenseToolNode (or a plain tools list) for full coverage.",
+                UserWarning,
+                stacklevel=2,
+            )
         final_tools: Any = tools
     else:
         tool_list = list(tools)
         # Provider built-in tool dicts (e.g. OpenAI/Anthropic native tools) are
-        # not executable by ToolNode — separate them and forward directly to
-        # create_react_agent which knows how to bind them to the model.
+        # not executable by ToolNode — bind them to the model directly so the
+        # model knows about them without mixing them into the ToolNode list
+        # (LangGraph would try to convert the ToolNode itself into a tool, failing).
         callable_tools = [t for t in tool_list if not isinstance(t, dict)]
         dict_tools = [t for t in tool_list if isinstance(t, dict)]
 
+        if dict_tools:
+            model = model.bind_tools(dict_tools)
+
         if callable_tools:
-            ad_node = AIDefenseToolNode(callable_tools, **shared_kwargs)
-            # If there are also dict tools, pass the ToolNode + dicts as a list
-            # so create_react_agent can register both.
-            final_tools = [ad_node] + dict_tools if dict_tools else ad_node
+            final_tools = AIDefenseToolNode(callable_tools, **shared_kwargs)
         else:
-            # No executable tools — pass dict tools straight through.
-            final_tools = dict_tools
+            # No executable tools — nothing for ToolNode to do.
+            final_tools = []
 
     return _create_react_agent(
         model,
