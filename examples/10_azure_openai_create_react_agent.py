@@ -27,7 +27,7 @@ Required environment variables::
 
 Usage::
 
-    pip install langchain-openai python-dotenv
+    pip install "langgraph>=0.2.27" langchain-openai python-dotenv
     python examples/10_azure_openai_create_react_agent.py
 """
 
@@ -55,7 +55,7 @@ import httpx
 def _build_cert_bundle() -> str:
     try:
         system_certs = subprocess.check_output(
-            ["security", "find-certificate", "-a", "-p", "/Library/Keychains/System.keychain"],
+            ["/usr/bin/security", "find-certificate", "-a", "-p", "/Library/Keychains/System.keychain"],
             stderr=subprocess.DEVNULL,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):

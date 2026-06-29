@@ -24,7 +24,7 @@ Both patterns:
 
 Usage:
     cp .env.example .env
-    pip install langchain-openai python-dotenv
+    pip install "langgraph>=0.2.27" langchain-openai python-dotenv
     python examples/09_callback_handler_create_react_agent.py
 """
 

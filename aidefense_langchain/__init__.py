@@ -55,6 +55,9 @@ try:
         create_aidefense_react_agent,
     )
 except ImportError as _react_err:
+    _missing = getattr(_react_err, "name", "") or ""
+    if not _missing.startswith("langgraph"):
+        raise
     raise ImportError(
         "aidefense_langchain's create_react_agent integration requires "
         "langgraph>=0.2.27 (for pre_model_hook, post_model_hook, and "
