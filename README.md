@@ -16,21 +16,29 @@ pip install langchain-cisco-aidefense
 
 ## Middleware Overview
 
-Four middleware implementations are provided:
+### `create_agent` (LangChain LCEL) — four middleware classes
 
-### LLM Inspection (`before_model` / `after_model`)
+#### LLM Inspection (`before_model` / `after_model`)
 
 | Middleware | Built on | Best for |
 |---|---|---|
 | `AIDefenseMiddleware` | `ChatInspectionClient` | New integrations — lightweight, no global state |
 | `AIDefenseAgentsecMiddleware` | agentsec `LLMInspector` | When you need agentsec's retry/backoff machinery |
 
-### Tool / MCP Inspection (`wrap_tool_call`)
+#### Tool / MCP Inspection (`wrap_tool_call`)
 
 | Middleware | Built on | Best for |
 |---|---|---|
 | `AIDefenseToolMiddleware` | `MCPInspectionClient` | New integrations — tool/MCP call inspection |
 | `AIDefenseAgentsecToolMiddleware` | agentsec `MCPInspector` | When you need agentsec's retry/backoff machinery |
+
+### `create_react_agent` (LangGraph prebuilt) — added in v1.1.0
+
+| Symbol | Purpose |
+|---|---|
+| `AIDefenseHooks` | Provides `pre_model_hook` / `post_model_hook` for LLM inspection |
+| `AIDefenseToolNode` | `ToolNode` subclass for tool call inspection |
+| `create_aidefense_react_agent` | Drop-in replacement for `create_react_agent` |
 
 ## Quick Start
 
@@ -306,6 +314,82 @@ When `fail_open=False`:
 | 6 | `06_side_by_side.py` | Same request through both middleware — side-by-side comparison |
 | 7 | `07_tool_inspection_enforce.py` | Tool inspection — LLM + tool call inspection combined |
 | 8 | `08_tool_inspection_agentsec.py` | Agentsec tool inspection — MCPInspector with retry |
+| 9 | `09_callback_handler_create_react_agent.py` | `create_react_agent` with OpenAI — Options A & B |
+| 10 | `10_azure_openai_create_react_agent.py` | `create_react_agent` with Azure OpenAI + macOS SSL fix |
+
+## `create_react_agent` Integration (v1.1.0)
+
+LangGraph's `create_react_agent` does not expose `before_model` / `after_model` hooks,
+so the middleware classes above cannot be used with it directly. v1.1.0 adds native
+support via LangGraph's `pre_model_hook`, `post_model_hook`, and `ToolNode.wrap_tool_call`.
+
+Requires `langgraph >= 0.2.27`.
+
+### Option A — Primitives (maximum control)
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+from aidefense_langchain import AIDefenseHooks, AIDefenseToolNode, AIDefenseViolationError
+
+@tool
+def get_weather(city: str) -> str:
+    """Return current weather for a city."""
+    return f"It's 72°F and sunny in {city}!"
+
+hooks = AIDefenseHooks(api_key="<AIDEFENSE_API_KEY>", mode="enforce")
+tool_node = AIDefenseToolNode([get_weather], api_key="<AIDEFENSE_API_KEY>", mode="enforce")
+
+agent = create_react_agent(
+    model=ChatOpenAI(model="gpt-4o-mini"),
+    tools=tool_node,
+    pre_model_hook=hooks.pre_model_hook,
+    post_model_hook=hooks.post_model_hook,
+)
+
+try:
+    result = agent.invoke({"messages": [("user", "What's the weather in Seattle?")]})
+    print(result["messages"][-1].content)
+except AIDefenseViolationError as e:
+    print(f"Blocked at '{e.direction}': {e}")
+```
+
+### Option B — Convenience wrapper (minimum changes)
+
+```python
+from aidefense_langchain import create_aidefense_react_agent, AIDefenseViolationError
+
+agent = create_aidefense_react_agent(
+    model=ChatOpenAI(model="gpt-4o-mini"),
+    tools=[get_weather],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="enforce",
+)
+```
+
+### Violation handling
+
+`AIDefenseViolationError` carries:
+- `.direction` — `"input"`, `"output"`, `"tool '<name>' input"`, or `"tool '<name>' output"`
+- `.response` — the full `InspectResponse` from the SDK (includes `event_id`, `severity`, `explanation`)
+
+In `"monitor"` mode, violations are logged and the optional `on_violation` callback is invoked,
+but the agent continues:
+
+```python
+violations = []
+agent = create_aidefense_react_agent(
+    model=llm, tools=[get_weather],
+    api_key="<AIDEFENSE_API_KEY>",
+    mode="monitor",
+    on_violation=lambda resp, direction: violations.append(direction),
+)
+```
+
+> **LangGraph V2.0 note:** `create_react_agent` is deprecated in `langgraph.prebuilt`
+> (LangGraph V1.0) and will move to `langchain.agents` in V2.0. Update your import
+> when you upgrade.
 
 ## Development
 
