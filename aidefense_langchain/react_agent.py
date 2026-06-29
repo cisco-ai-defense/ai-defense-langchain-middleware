@@ -111,6 +111,17 @@ _LC_TYPE_TO_ROLE: dict[str, Role] = {
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _validate_mode(mode: str) -> None:
+    if mode not in ("enforce", "monitor", "off"):
+        raise ValueError(
+            f"mode must be 'enforce', 'monitor', or 'off', got {mode!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Public exception
 # ---------------------------------------------------------------------------
 
@@ -267,7 +278,10 @@ class _Guard:
         log_msg = f"AI Defense policy violation: {', '.join(log_parts)}"
 
         if self.on_violation:
-            self.on_violation(result, direction)
+            try:
+                self.on_violation(result, direction)
+            except Exception:
+                logger.exception("AI Defense on_violation callback failed")
 
         if self.mode == "enforce":
             logger.warning("%s — blocking", log_msg)
@@ -353,10 +367,7 @@ class AIDefenseHooks:
         src_app: Optional[str] = None,
         on_violation: Optional[Callable[[InspectResponse, str], None]] = None,
     ) -> None:
-        if mode not in ("enforce", "monitor", "off"):
-            raise ValueError(
-                f"mode must be 'enforce', 'monitor', or 'off', got {mode!r}"
-            )
+        _validate_mode(mode)
         self._guard = _Guard(
             api_key=api_key,
             region=region,
@@ -492,10 +503,7 @@ class AIDefenseToolNode(ToolNode):
         handle_tool_errors: bool = False,
         **tool_node_kwargs: Any,
     ) -> None:
-        if mode not in ("enforce", "monitor", "off"):
-            raise ValueError(
-                f"mode must be 'enforce', 'monitor', or 'off', got {mode!r}"
-            )
+        _validate_mode(mode)
 
         self._aidefense_guard = _Guard(
             api_key=api_key,
@@ -645,10 +653,7 @@ def create_aidefense_react_agent(
         except AIDefenseViolationError as e:
             print(f"Blocked at {e.direction}: {e}")
     """
-    if mode not in ("enforce", "monitor", "off"):
-        raise ValueError(
-            f"mode must be 'enforce', 'monitor', or 'off', got {mode!r}"
-        )
+    _validate_mode(mode)
 
     # Shared Config so both hooks and tool node use the same singleton
     if config is None:
