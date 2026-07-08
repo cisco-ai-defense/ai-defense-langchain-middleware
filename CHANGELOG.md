@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-07-07
+
+### Changed
+
+- Raised minimum `cisco-aidefense-sdk` version to `>=2.1.2` so installs no longer
+  pull in the obsolete PyPI `uuid` package (removed from the SDK in 2.1.2).
+
 ## [1.1.0] - 2026-06-29
 
 ### Added
