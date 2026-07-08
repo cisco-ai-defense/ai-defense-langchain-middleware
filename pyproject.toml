@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-cisco-aidefense"
-version = "1.1.0"
+version = "1.1.1"
 description = "Cisco AI Defense middleware for LangChain agents — runtime security inspection of LLM inputs/outputs and tool/MCP calls"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -42,7 +42,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "cisco-aidefense-sdk>=2.1.0",
+    "cisco-aidefense-sdk>=2.1.2",
     "langchain>=1.0.0",
     "langgraph>=0.2.27",
 ]
