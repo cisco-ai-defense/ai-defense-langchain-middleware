@@ -11,7 +11,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain.agents import create_agent
+from langchain_core.language_models import FakeListChatModel
 from langchain.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
 
 from aidefense.runtime.models import (
     Action,
@@ -48,6 +51,16 @@ class TestAIDefenseMiddleware:
             severity=Severity.HIGH,
             event_id="evt-123",
         )
+
+    @staticmethod
+    def _inspection_messages(messages):
+        rows = []
+        for msg in messages:
+            role = getattr(getattr(msg, "role", None), "value", getattr(msg, "role", None))
+            if role is None:
+                role = getattr(msg, "type", type(msg).__name__)
+            rows.append((role, msg.content))
+        return rows
 
     @staticmethod
     def _fake_state(content: str = "Hello"):
@@ -128,6 +141,73 @@ class TestAIDefenseMiddleware:
         assert result is not None
         assert result["jump_to"] == "end"
 
+    def test_multiturn_agent_inspects_latest_turn_by_default(self):
+        with patch("aidefense_langchain.middleware_chat_client.ChatInspectionClient"):
+            from aidefense_langchain import AIDefenseMiddleware
+
+            mw = AIDefenseMiddleware(api_key="test-key", mode="enforce")
+            mw.client.inspect_conversation.return_value = self._safe_response()
+
+            agent = create_agent(
+                model=FakeListChatModel(responses=["first answer", "second answer"]),
+                middleware=[mw],
+                system_prompt="Be helpful.",
+                checkpointer=InMemorySaver(),
+            )
+            config = {"configurable": {"thread_id": "thread-1"}}
+
+            agent.invoke({"messages": [{"role": "user", "content": "first user"}]}, config=config)
+            agent.invoke({"messages": [{"role": "user", "content": "second user"}]}, config=config)
+
+        seen = [
+            self._inspection_messages(call.kwargs["messages"])
+            for call in mw.client.inspect_conversation.call_args_list
+        ]
+        assert seen == [
+            [("user", "first user")],
+            [("user", "first user"), ("assistant", "first answer")],
+            [("user", "second user")],
+            [("user", "second user"), ("assistant", "second answer")],
+        ]
+
+    def test_multiturn_agent_thread_scope_reinspects_growing_transcript(self):
+        with patch("aidefense_langchain.middleware_chat_client.ChatInspectionClient"):
+            from aidefense_langchain import AIDefenseMiddleware
+
+            mw = AIDefenseMiddleware(
+                api_key="test-key",
+                mode="enforce",
+                inspection_scope="thread",
+            )
+            mw.client.inspect_conversation.return_value = self._safe_response()
+
+            agent = create_agent(
+                model=FakeListChatModel(responses=["first answer", "second answer"]),
+                middleware=[mw],
+                system_prompt="Be helpful.",
+                checkpointer=InMemorySaver(),
+            )
+            config = {"configurable": {"thread_id": "thread-1"}}
+
+            agent.invoke({"messages": [{"role": "user", "content": "first user"}]}, config=config)
+            agent.invoke({"messages": [{"role": "user", "content": "second user"}]}, config=config)
+
+        seen = [
+            self._inspection_messages(call.kwargs["messages"])
+            for call in mw.client.inspect_conversation.call_args_list
+        ]
+        assert seen == [
+            [("user", "first user")],
+            [("user", "first user"), ("assistant", "first answer")],
+            [("user", "first user"), ("assistant", "first answer"), ("user", "second user")],
+            [
+                ("user", "first user"),
+                ("assistant", "first answer"),
+                ("user", "second user"),
+                ("assistant", "second answer"),
+            ],
+        ]
+
     @pytest.mark.asyncio
     async def test_abefore_model_uses_async_hook(self):
         mw = self._make_middleware(mode="enforce")
@@ -152,6 +232,19 @@ class TestAIDefenseMiddleware:
 
         assert mw.mode == "monitor"
 
+    def test_from_env_reads_inspection_scope(self):
+        with patch("aidefense_langchain.middleware_chat_client.ChatInspectionClient"):
+            from aidefense_langchain import AIDefenseMiddleware
+
+            mw = AIDefenseMiddleware.from_env(
+                {
+                    "AIDEFENSE_API_KEY": "test-key",
+                    "AIDEFENSE_INSPECTION_SCOPE": "thread",
+                }
+            )
+
+        assert mw.inspection_scope == "thread"
+
     def test_explicit_config_is_passed_to_client(self):
         """When a pre-built Config is provided, it should be forwarded
         directly to ChatInspectionClient instead of constructing a new one."""
@@ -170,6 +263,10 @@ class TestAIDefenseMiddleware:
     def test_invalid_mode_raises(self):
         with pytest.raises(ValueError, match="mode must be"):
             self._make_middleware(mode="invalid")
+
+    def test_invalid_inspection_scope_raises(self):
+        with pytest.raises(ValueError, match="inspection_scope must be"):
+            self._make_middleware(inspection_scope="bad-scope")
 
     def test_structured_message_content_is_flattened(self):
         from aidefense_langchain.middleware_chat_client import (

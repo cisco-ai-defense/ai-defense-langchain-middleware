@@ -48,6 +48,7 @@ from aidefense.runtime import (
 
 from ._env import direct_kwargs_from_env, normalize_region
 from ._content import flatten_content_text
+from ._inspection_scope import scoped_langchain_messages, validate_inspection_scope
 
 logger = logging.getLogger("aidefense.langchain")
 
@@ -133,6 +134,10 @@ class AIDefenseMiddleware(AgentMiddleware):
     on_violation : callable, optional
         Callback ``(InspectResponse, direction: str) -> None`` invoked on
         every violation (in both enforce and monitor modes).
+    inspection_scope : str
+        ``"latest_turn"`` (default) inspects only the newest conversation
+        window for each hook. ``"thread"`` reinspects the full retained
+        LangChain message history on every hook.
 
     Example
     -------
@@ -172,6 +177,7 @@ class AIDefenseMiddleware(AgentMiddleware):
         user: Optional[str] = None,
         src_app: Optional[str] = None,
         on_violation: Optional[Callable[[InspectResponse, str], None]] = None,
+        inspection_scope: str = "latest_turn",
     ) -> None:
         super().__init__()
         if mode not in ("enforce", "monitor", "off"):
@@ -180,6 +186,7 @@ class AIDefenseMiddleware(AgentMiddleware):
         self.mode = mode
         self.fail_open = fail_open
         self.on_violation = on_violation
+        self.inspection_scope = validate_inspection_scope(inspection_scope)
 
         self._metadata = _build_metadata(user=user, src_app=src_app)
         self._inspection_config = self._build_inspection_config(rules)
@@ -208,7 +215,13 @@ class AIDefenseMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_aidefense(state["messages"])
+        messages = _langchain_messages_to_aidefense(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="input",
+            )
+        )
         result = self._safe_inspect(messages)
 
         if result is not None and not result.is_safe:
@@ -223,7 +236,13 @@ class AIDefenseMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_aidefense(state["messages"])
+        messages = _langchain_messages_to_aidefense(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="input",
+            )
+        )
         result = await asyncio.to_thread(self._safe_inspect, messages)
 
         if result is not None and not result.is_safe:
@@ -238,7 +257,13 @@ class AIDefenseMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_aidefense(state["messages"])
+        messages = _langchain_messages_to_aidefense(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="output",
+            )
+        )
         result = self._safe_inspect(messages)
 
         if result is not None and not result.is_safe:
@@ -253,7 +278,13 @@ class AIDefenseMiddleware(AgentMiddleware):
         if self.mode == "off":
             return None
 
-        messages = _langchain_messages_to_aidefense(state["messages"])
+        messages = _langchain_messages_to_aidefense(
+            scoped_langchain_messages(
+                state["messages"],
+                inspection_scope=self.inspection_scope,
+                direction="output",
+            )
+        )
         result = await asyncio.to_thread(self._safe_inspect, messages)
 
         if result is not None and not result.is_safe:
