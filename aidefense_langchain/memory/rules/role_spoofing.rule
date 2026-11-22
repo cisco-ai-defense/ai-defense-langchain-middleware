@@ -1,0 +1,12 @@
+rule "Memory role spoofing"
+metadata:
+    category = "prompt_injection"
+    severity = "high"
+strings:
+    $header = ["<|im_start|>system", "<|im_start|>developer", "<|start_header_id|>system<|end_header_id|>", "<|start_header_id|>developer<|end_header_id|>", "<system>", "<developer>", "[SYSTEM]", "[DEVELOPER]", "SYSTEM:", "DEVELOPER:", "## System Instructions", "## Developer Instructions"] nocase
+    $directive = ["ignore previous", "ignore your", "you must", "assistant must", "agent must", "skip approval", "disable guard", "send credentials"] nocase
+condition:
+    any event in memory.events where
+        (event.trust_level == "untrusted" or event.trust_level == "unknown") and
+        event.content contains_any $header and
+        event.content contains_any $directive

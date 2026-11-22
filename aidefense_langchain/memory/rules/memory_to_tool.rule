@@ -1,0 +1,18 @@
+// Exact copied recipient, not proof that memory caused the tool call.
+rule "Unverified memory recipient used by send_report"
+metadata:
+    category = "memory_to_tool"
+    severity = "medium"
+strings:
+    $email = "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}" regex
+condition:
+    (any call in get_tool_calls("send_report") where
+        call.arguments.to contains recipient)
+    after(within: 12)
+    (any event in memory.events where
+        (event.operation == "read" or event.operation == "get" or
+         event.operation == "search" or event.operation == "checkpoint_read" or
+         event.operation == "history_read") and
+        (event.origin_kind == "external" or event.origin_kind == "model" or event.origin_kind == "unknown") and
+        (event.trust_level == "untrusted" or event.trust_level == "unknown") and
+        $email in event.content as recipient)

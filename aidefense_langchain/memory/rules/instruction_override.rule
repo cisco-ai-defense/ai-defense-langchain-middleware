@@ -1,0 +1,12 @@
+rule "Memory instruction override"
+metadata:
+    category = "prompt_injection"
+    severity = "high"
+strings:
+    $agent = ["assistant", "agent", "you must", "you should"] nocase
+    $override = ["ignore previous instructions", "ignore your instructions", "override system instructions", "replace system prompt", "disregard developer instructions", "bypass safety policy"] nocase
+condition:
+    any event in memory.events where
+        (event.trust_level == "untrusted" or event.trust_level == "unknown") and
+        event.content contains_any $agent and
+        event.content contains_any $override

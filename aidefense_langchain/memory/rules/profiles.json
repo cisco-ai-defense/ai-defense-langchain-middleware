@@ -1,0 +1,30 @@
+{
+  "rules": {
+    "protected_write": {"file": "protected_write.rule", "stage": "memory"},
+    "protected_read": {"file": "protected_read.rule", "stage": "memory"},
+    "provenance_mismatch": {"file": "provenance_mismatch.rule", "stage": "memory"},
+    "role_spoofing": {"file": "role_spoofing.rule", "stage": "memory"},
+    "authority_laundering": {"file": "authority_laundering.rule", "stage": "memory"},
+    "instruction_override": {"file": "instruction_override.rule", "stage": "memory"},
+    "persistence": {"file": "persistence.rule", "stage": "memory"},
+    "sensitive_tool": {"file": "sensitive_tool.rule", "stage": "memory"},
+    "secret_exfiltration": {"file": "secret_exfiltration.rule", "stage": "memory"},
+    "encoded_override": {"file": "encoded_override.rule", "stage": "memory"},
+    "obfuscated_override": {"file": "obfuscated_override.rule", "stage": "memory"},
+    "memory_to_tool": {"file": "memory_to_tool.rule", "stage": "tool"}
+  },
+  "profiles": {
+    "permissive": {
+      "enforce": ["protected_write"],
+      "monitor": ["protected_read", "provenance_mismatch", "role_spoofing", "authority_laundering"]
+    },
+    "balanced": {
+      "enforce": ["protected_write", "role_spoofing", "authority_laundering"],
+      "monitor": ["protected_read", "provenance_mismatch", "instruction_override", "persistence", "sensitive_tool", "secret_exfiltration", "encoded_override", "memory_to_tool"]
+    },
+    "strict": {
+      "enforce": ["protected_write", "role_spoofing", "authority_laundering", "instruction_override", "persistence", "sensitive_tool", "secret_exfiltration", "encoded_override", "obfuscated_override", "memory_to_tool"],
+      "monitor": ["protected_read", "provenance_mismatch"]
+    }
+  }
+}
