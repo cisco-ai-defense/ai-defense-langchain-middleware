@@ -17,7 +17,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import CheckpointTuple
 from langgraph.types import Command
 
-from .quarry_scanner import ScanOutcome
+from ..quarry.scanner import ScanOutcome
 from .provenance import MemoryOrigin, current_memory_origin
 from .store_types import MemoryDecision, MemoryInspectionFailed, MemoryWriteBlocked
 

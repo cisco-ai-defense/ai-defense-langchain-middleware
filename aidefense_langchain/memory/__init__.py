@@ -4,10 +4,10 @@
 """Optional LangChain memory protection backed by local Quarry rules."""
 
 from .middleware import AIDefenseMemoryMiddleware
-from .checkpoint import GuardedCheckpointSaver
-from .history import GuardedChatMessageHistory
-from .provenance import memory_origin
-from .store import GuardedMemoryStore, MemoryDecision, MemoryInspectionFailed, MemoryWriteBlocked
+from .backends.checkpoint import GuardedCheckpointSaver
+from .backends.history import GuardedChatMessageHistory
+from .backends.provenance import memory_origin
+from .backends.store import GuardedMemoryStore, MemoryDecision, MemoryInspectionFailed, MemoryWriteBlocked
 
 __all__ = [
     "AIDefenseMemoryMiddleware",

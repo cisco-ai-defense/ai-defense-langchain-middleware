@@ -14,12 +14,12 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import BaseMessage, convert_to_openai_messages
 
 from .provenance import current_memory_origin
-from .quarry_scanner import QuarryMemoryScanner, ScanOutcome
+from ..quarry.scanner import QuarryMemoryScanner, ScanOutcome
 
 HistoryMode = Literal["enforce", "monitor", "off"]
 HistoryStatus = Literal["allow", "monitor", "block", "error"]
 _MAX_MESSAGES = 4096
-logger = logging.getLogger("aidefense.langchain.memory.history")
+logger = logging.getLogger("aidefense.langchain.memory.backends.history")
 
 
 @dataclass(frozen=True, slots=True)

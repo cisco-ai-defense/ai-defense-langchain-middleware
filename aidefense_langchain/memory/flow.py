@@ -16,8 +16,8 @@ from langchain.agents.middleware.types import ExtendedModelResponse, ModelRespon
 from langchain.messages import AIMessage, ToolMessage
 from langgraph.types import Command
 
-from .provenance import snapshot_json
-from .quarry_scanner import MemoryReadEvent
+from .backends.provenance import snapshot_json
+from .quarry.scanner import MemoryReadEvent
 
 
 class MemoryTraceError(Exception):

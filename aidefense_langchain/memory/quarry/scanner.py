@@ -13,8 +13,8 @@ from typing import Any
 from quarry import DSLScanner, ModelInferenceBackend, SafetyLimits, ScanResult
 from quarry.config import QuarryConfig
 
-from .quarry_inputs import INPUTS, MAX_DEPTH, READ_OPERATIONS, InputBuilder, MemoryReadEvent
-from .quarry_profiles import profile_rules
+from .inputs import INPUTS, MAX_DEPTH, READ_OPERATIONS, InputBuilder, MemoryReadEvent
+from .profiles import profile_rules
 
 _SCAN_DEADLINE_SECONDS = 3.0
 _SAFETY_LIMITS = SafetyLimits(

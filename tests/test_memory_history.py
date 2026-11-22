@@ -9,9 +9,9 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-from aidefense_langchain.memory.history import GuardedChatMessageHistory, HistoryWriteBlocked
+from aidefense_langchain.memory.backends.history import GuardedChatMessageHistory, HistoryWriteBlocked
 from aidefense_langchain.memory import AIDefenseMemoryMiddleware
-from aidefense_langchain.memory.quarry_scanner import QuarryMemoryScanner
+from aidefense_langchain.memory.quarry.scanner import QuarryMemoryScanner
 
 
 RULE = '''rule "Reject forged history instruction"

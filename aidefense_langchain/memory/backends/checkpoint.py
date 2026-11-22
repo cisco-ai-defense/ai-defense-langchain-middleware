@@ -15,7 +15,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver, CheckpointTuple
 
 from .checkpoint_inspection import _CheckpointInspection
-from .quarry_scanner import QuarryMemoryScanner
+from ..quarry.scanner import QuarryMemoryScanner
 from .store_types import MemoryDecision, MemoryMode
 
 logger = logging.getLogger("aidefense.langchain.memory")

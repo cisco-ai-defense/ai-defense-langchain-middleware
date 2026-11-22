@@ -8,8 +8,8 @@ import pytest
 pytest.importorskip("quarry", minversion="0.1.1")
 from quarry import IncompleteScanError, ScanResult
 
-from aidefense_langchain.memory.quarry_scanner import MemoryReadEvent, QuarryMemoryScanner
-from aidefense_langchain.memory.quarry_inputs import InputBuilder
+from aidefense_langchain.memory.quarry.scanner import MemoryReadEvent, QuarryMemoryScanner
+from aidefense_langchain.memory.quarry.inputs import InputBuilder
 
 
 _EVENT = {"operation": "write", "namespace": ("customer",), "key": "note", "writer_tool": "save_note"}

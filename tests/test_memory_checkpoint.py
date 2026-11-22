@@ -10,9 +10,9 @@ from langchain_core.messages import HumanMessage, RemoveMessage
 from langgraph.checkpoint.base import empty_checkpoint
 from langgraph.checkpoint.memory import InMemorySaver
 
-from aidefense_langchain.memory.checkpoint import GuardedCheckpointSaver
-from aidefense_langchain.memory.quarry_scanner import QuarryMemoryScanner
-from aidefense_langchain.memory.store_types import MemoryWriteBlocked
+from aidefense_langchain.memory.backends.checkpoint import GuardedCheckpointSaver
+from aidefense_langchain.memory.backends.store_types import MemoryWriteBlocked
+from aidefense_langchain.memory.quarry.scanner import QuarryMemoryScanner
 
 
 RULE = '''rule "No injected checkpoint"

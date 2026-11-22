@@ -12,7 +12,7 @@ from typing import Callable, Iterable
 from langgraph.store.base import BaseStore, Op, PutOp, Result
 
 from .provenance import current_memory_origin, sidecar_key, snapshot_json, value_digest
-from .quarry_scanner import QuarryMemoryScanner, ScanOutcome
+from ..quarry.scanner import QuarryMemoryScanner, ScanOutcome
 from .store_reads import SIDECAR_NAMESPACE, StoreReadMixin, reserved
 from .store_types import (
     MemoryDecision, MemoryInspectionFailed, MemoryMode, MemoryWriteBlocked,

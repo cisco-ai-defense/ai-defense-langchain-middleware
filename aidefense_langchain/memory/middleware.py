@@ -14,15 +14,15 @@ from langchain.tools.tool_node import ToolCallRequest
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
 
-from .checkpoint import GuardedCheckpointSaver
-from .flow import MemoryTraceError, RunRegistry
-from .history import GuardedChatMessageHistory
-from .quarry_scanner import QuarryMemoryScanner
-from .store import GuardedMemoryStore
-from .store_types import (
+from .backends.checkpoint import GuardedCheckpointSaver
+from .backends.history import GuardedChatMessageHistory
+from .backends.store import GuardedMemoryStore
+from .backends.store_types import (
     MemoryDecision, MemoryInspectionFailed, MemoryMode, MemoryWriteBlocked,
     _reset_read_sink, _reset_writer_tool, _set_read_sink, _set_writer_tool,
 )
+from .flow import MemoryTraceError, RunRegistry
+from .quarry.scanner import QuarryMemoryScanner
 
 logger = logging.getLogger("aidefense.langchain.memory")
 _RUN_KEY = "aidefense_memory_run_id"

@@ -91,7 +91,7 @@ backing Store; inside an agent tool they become a recoverable error result.
 
 ## Rules and sensitivity
 
-The bundled [rules](../aidefense_langchain/memory/rules/) are Quarry `.rule`
+The bundled [rules](../aidefense_langchain/memory/quarry/rules/) are Quarry `.rule`
 files selected by `profiles.json`. Profiles add increasingly broad signals:
 
 | Profile | Enforced writes | Observed writes/reads | Pre-tool flow |
@@ -114,12 +114,12 @@ decisions intact and sets `decision.monitor_incomplete=True` for observability.
 
 ## Boundaries and layout
 
-`aidefense_langchain/memory/` keeps three pieces separate: `store.py`,
-`checkpoint.py`, and `history.py` wrap framework memory; `middleware.py` owns
-tool hooks and one-run read recording; `quarry_scanner.py` and `quarry_inputs.py`
-translate those facts to Quarry's public declared-input API. `rules/` contains
-policy text and profile selection. No internal Augur package or AgentSec patcher
-is required.
+`aidefense_langchain/memory/backends/` wraps Store, checkpoint, and chat
+history objects and tracks provenance. `memory/middleware.py` owns LangChain
+hooks, while `memory/flow.py` records released reads for one agent run.
+`memory/quarry/` converts those facts to Quarry declared inputs, runs the
+rules, and packages the profile and rule files. No internal Augur package or
+AgentSec patcher is required.
 
 The Store sidecar records the writer origin, tool name, and a canonical value
 digest. A missing or mismatched digest lowers trust to `unknown` on read. The

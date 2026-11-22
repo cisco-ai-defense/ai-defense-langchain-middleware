@@ -10,7 +10,7 @@ from typing import Any
 from langgraph.store.base import GetOp, Item, ListNamespacesOp, Op, Result, SearchOp
 
 from .provenance import MemoryOrigin, read_provenance, sidecar_key, snapshot_json
-from .quarry_scanner import MemoryReadEvent, ScanOutcome
+from ..quarry.scanner import MemoryReadEvent, ScanOutcome
 from .store_types import MemoryDecision, current_read_sink, current_tool
 
 SIDECAR_NAMESPACE = ("__aidefense_memory__", "provenance", "v1")
