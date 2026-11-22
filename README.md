@@ -87,8 +87,9 @@ agent = create_agent(
 )
 ```
 
-The [live agent demo](examples/memory_poisoning_demo/README.md) shows an
-unprotected memory poisoning attempt beside the guarded result. Quarry's newer
+The [live agent demo](examples/memory_poisoning_demo/README.md) and
+[step-by-step notebook](examples/memory_poisoning_demo/live_memory_demo.ipynb)
+show an unprotected memory poisoning attempt beside the guarded result. Quarry's newer
 declared-input API is currently available from its public source commit; see the
 [installation steps](docs/memory_protection.md#installation) until its next PyPI release.
 

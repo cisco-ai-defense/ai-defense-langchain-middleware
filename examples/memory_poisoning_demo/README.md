@@ -31,6 +31,16 @@ pip install streamlit
 streamlit run examples/memory_poisoning_demo/app.py
 ```
 
+For a shorter, step-by-step walkthrough, open the [Jupyter notebook](live_memory_demo.ipynb):
+
+```bash
+pip install jupyterlab
+jupyter lab examples/memory_poisoning_demo/live_memory_demo.ipynb
+```
+
+Run its cells in order. It uses the same model credentials, shows the middleware
+wiring and Quarry rule, then runs the same agent task without and with protection.
+
 ## Expected results
 
 | Boundary | Comparison | Expected result |
