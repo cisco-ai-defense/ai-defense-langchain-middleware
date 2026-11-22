@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -16,6 +17,7 @@ _ORIGINS = frozenset({"external", "model", "system", "user", "unknown"})
 _TRUST = frozenset({"trusted", "untrusted", "unknown"})
 _TARGETS = frozenset({"protected", "ordinary", "unknown"})
 _PROVENANCE = frozenset({"verified", "missing", "mismatch", "unknown"})
+EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 INPUTS = {
     "memory.events": {
@@ -30,6 +32,7 @@ INPUTS = {
             "trust_level": {"type": "string", "values": sorted(_TRUST)},
             "target_class": {"type": "string", "values": sorted(_TARGETS)},
             "provenance_status": {"type": "string", "values": sorted(_PROVENANCE)},
+            "recipient_matches_to": {"type": "boolean"},
         },
     }
 }
@@ -127,6 +130,7 @@ class InputBuilder:
         trust_level: str,
         target_class: str,
         provenance_status: str,
+        recipient_matches_to: bool = False,
     ) -> dict[str, Any]:
         cls.bounded_text(event_id, "event_id")
         cls.bounded_text(operation, "operation")
@@ -160,6 +164,7 @@ class InputBuilder:
             "trust_level": trust_level,
             "target_class": target_class,
             "provenance_status": provenance_status,
+            "recipient_matches_to": recipient_matches_to,
         }
 
     @classmethod
@@ -188,6 +193,7 @@ class InputBuilder:
             raise ValueError("Tool arguments exceed the 64 KB flow limit")
         events = []
         timeline = []
+        to_value = arguments.get("to")
         for index, read in enumerate(reads):
             if not isinstance(read, MemoryReadEvent) or read.operation not in READ_OPERATIONS:
                 raise ValueError("Tool flow needs ordered memory read events")
@@ -204,6 +210,14 @@ class InputBuilder:
                 trust_level=read.trust_level,
                 target_class=read.target_class,
                 provenance_status=read.provenance_status,
+                recipient_matches_to=(
+                    tool_name == "send_report"
+                    and isinstance(to_value, str)
+                    and any(
+                        match.group(0) == to_value
+                        for match in EMAIL_PATTERN.finditer(readable_content(read.value))
+                    )
+                ),
             ))
             timeline.append({"input": "memory.events", "id": event_id})
         timeline.extend(({"message_index": 0}, {"tool_call_id": tool_call_id}))

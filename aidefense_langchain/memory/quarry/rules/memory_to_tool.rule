@@ -7,7 +7,7 @@ strings:
     $email = "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}" regex
 condition:
     (any call in get_tool_calls("send_report") where
-        call.arguments.to contains recipient)
+        $email in call.arguments.to)
     after(within: 12)
     (any event in memory.events where
         (event.operation == "read" or event.operation == "get" or
@@ -15,4 +15,5 @@ condition:
          event.operation == "history_read") and
         (event.origin_kind == "external" or event.origin_kind == "model" or event.origin_kind == "unknown") and
         (event.trust_level == "untrusted" or event.trust_level == "unknown") and
-        $email in event.content as recipient)
+        $email in event.content and
+        event.recipient_matches_to == true)

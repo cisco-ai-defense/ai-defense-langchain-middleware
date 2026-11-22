@@ -34,6 +34,11 @@ def _thread(config: RunnableConfig) -> tuple[str, str]:
     return thread_id, checkpoint_ns
 
 
+def _namespace(config: RunnableConfig, channel: str) -> tuple[str, ...]:
+    thread_id, checkpoint_ns = _thread(config)
+    return ("checkpoint", thread_id, checkpoint_ns or "root", channel)
+
+
 def _messages(channel: str, value: Any) -> list[Any]:
     if channel == "__start__":
         if isinstance(value, Command):
@@ -47,14 +52,18 @@ def _messages(channel: str, value: Any) -> list[Any]:
 
 
 def _normalized(message: Any) -> dict[str, Any]:
+    converted = convert_to_messages([message])
+    if len(converted) != 1:
+        raise ValueError("Checkpoint message cannot be normalized")
+    message = converted[0]
     if isinstance(message, RemoveMessage):
         if not isinstance(message.id, str) or not message.id:
             raise ValueError("Checkpoint removal has no stable message ID")
         return {"removed_message_id": message.id}
-    converted = convert_to_openai_messages(convert_to_messages([message]))
-    if not isinstance(converted, list) or len(converted) != 1:
+    openai_messages = convert_to_openai_messages([message])
+    if not isinstance(openai_messages, list) or len(openai_messages) != 1:
         raise ValueError("Checkpoint message cannot be normalized")
-    return converted[0]
+    return openai_messages[0]
 
 
 def _fingerprint(value: dict[str, Any]) -> str:
@@ -72,14 +81,14 @@ class _CheckpointInspection:
             if channel not in ("messages", "__start__"):
                 continue
             for index, message in enumerate(_messages(channel, value)):
-                key = message.id if isinstance(message, RemoveMessage) else str(index)
-                items.append((channel, key, _normalized(message)))
+                content = _normalized(message)
+                key = content.get("removed_message_id", str(index))
+                items.append((channel, key, content))
         return items
 
-    def _new_items(
-        self, config: RunnableConfig, channels: Sequence[tuple[str, Any]]
+    def _new_items_from_previous(
+        self, previous: CheckpointTuple | None, channels: Sequence[tuple[str, Any]]
     ) -> list[tuple[str, str, dict[str, Any]]]:
-        previous = self._backing.get_tuple(config)
         old = (
             previous.checkpoint.get("channel_values", {}).get("messages", [])
             if previous is not None
@@ -98,6 +107,16 @@ class _CheckpointInspection:
                 result.append((channel, key, value))
         return result
 
+    def _new_items(
+        self, config: RunnableConfig, channels: Sequence[tuple[str, Any]]
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        return self._new_items_from_previous(self._backing.get_tuple(config), channels)
+
+    async def _anew_items(
+        self, config: RunnableConfig, channels: Sequence[tuple[str, Any]]
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        return self._new_items_from_previous(await self._backing.aget_tuple(config), channels)
+
     def _decision(
         self,
         *,
@@ -107,7 +126,6 @@ class _CheckpointInspection:
         operation: str,
         outcome: ScanOutcome | None,
     ) -> MemoryDecision:
-        thread_id, checkpoint_ns = _thread(config)
         matched = bool(outcome and outcome.rules)
         blocking = bool(outcome and getattr(outcome, "blocking_rules", outcome.rules))
         status = (
@@ -119,7 +137,7 @@ class _CheckpointInspection:
         origin = MemoryOrigin() if operation == "checkpoint_read" else current_memory_origin()
         return MemoryDecision(
             operation=operation,
-            namespace=("checkpoint", thread_id, checkpoint_ns or "root", channel),
+            namespace=_namespace(config, channel),
             key=key,
             writer_tool="langgraph.checkpointer",
             status=status,
@@ -145,7 +163,7 @@ class _CheckpointInspection:
             outcome = self._scanner.scan(
                 content,
                 operation=operation,
-                namespace=("checkpoint", _thread(config)[0], channel),
+                namespace=_namespace(config, channel),
                 key=key,
                 writer_tool="langgraph.checkpointer",
                 origin_kind=origin.kind if origin else "unknown",
@@ -184,7 +202,7 @@ class _CheckpointInspection:
             outcome = await self._scanner.ascan(
                 content,
                 operation=operation,
-                namespace=("checkpoint", _thread(config)[0], channel),
+                namespace=_namespace(config, channel),
                 key=key,
                 writer_tool="langgraph.checkpointer",
                 origin_kind=origin.kind if origin else "unknown",

@@ -7,11 +7,12 @@ from unittest.mock import MagicMock
 import pytest
 pytest.importorskip("quarry", minversion="0.1.1")
 from langchain.messages import AIMessage, ToolMessage
-from langgraph.store.base import PutOp, SearchOp
+from langgraph.store.base import PutOp, SearchItem, SearchOp
 from langgraph.store.memory import InMemoryStore
 
 from aidefense_langchain.memory import AIDefenseMemoryMiddleware, MemoryWriteBlocked, memory_origin
 from aidefense_langchain.memory.flow import MemoryTraceError
+from aidefense_langchain.memory.backends.store_types import _reset_read_sink, _set_read_sink
 
 
 RULE = '''rule "Vendor cannot change recipient"
@@ -44,7 +45,7 @@ def test_tool_write_is_blocked_and_agent_receives_recoverable_result():
 
     assert isinstance(result, ToolMessage)
     assert result.tool_call_id == "call-1"
-    assert "nothing was saved" in result.content.lower()
+    assert "attempted memory write was blocked" in result.content.lower()
     assert backing.get(NAMESPACE, KEY).value["content"] == "reports@company.example"
     assert len(decisions) == 1
     assert decisions[0].status == "block"
@@ -111,8 +112,20 @@ def test_read_provenance_and_sidecar_visibility():
     assert store.get(NAMESPACE, KEY).value == {"content": "audit@attacker.invalid"}
     assert decisions[-1].provenance_status == "verified"
     assert decisions[-1].origin_kind == "external"
-    assert [item.key for item in store.search(())] == [KEY]
+    search_result = store.search(())[0]
+    assert search_result.key == KEY
+    assert isinstance(search_result, SearchItem)
+    assert search_result.score == backing.search(NAMESPACE)[0].score
     assert store.list_namespaces() == [NAMESPACE]
+
+    read_events = []
+    token = _set_read_sink(read_events.append)
+    try:
+        read_item = store.get(NAMESPACE, KEY)
+        read_item.value.pop("content")
+    finally:
+        _reset_read_sink(token)
+    assert read_events[0].value == {"content": "audit@attacker.invalid"}
 
     # An out-of-band edit cannot inherit the first writer's trusted provenance.
     backing.put(NAMESPACE, KEY, {"content": "changed"})
@@ -212,4 +225,24 @@ def test_parallel_read_and_send_do_not_create_false_flow():
         send_request, lambda _: ToolMessage(content="sent", tool_call_id="call-2")
     )
     assert result.content == "sent"
+    guard.after_agent(state, None)
+
+
+def test_monitor_mode_continues_after_rewritten_read_result():
+    guard = AIDefenseMemoryMiddleware(profile="strict", mode="monitor", gated_tools={"send_report"})
+    state = guard.before_agent({}, None)
+    run = guard._runs.get(state["aidefense_memory_run_id"])
+    run.record_model_output(AIMessage(
+        content="", tool_calls=[{"id": "call-1", "name": "read_report_recipient", "args": {}}]
+    ))
+    from aidefense_langchain.memory.quarry.inputs import MemoryReadEvent
+    run.release_reads(
+        "call-1",
+        [MemoryReadEvent(value="audit@attacker.invalid", namespace=NAMESPACE, key=KEY)],
+        ToolMessage(content="audit@attacker.invalid", tool_call_id="call-1"),
+    )
+    request = MagicMock(state=state)
+    request.messages = [ToolMessage(content="redacted", tool_call_id="call-1")]
+    result = guard.wrap_model_call(request, lambda _: AIMessage(content="continued"))
+    assert result.content == "continued"
     guard.after_agent(state, None)

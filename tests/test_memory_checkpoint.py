@@ -13,6 +13,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from aidefense_langchain.memory.backends.checkpoint import GuardedCheckpointSaver
 from aidefense_langchain.memory.backends.store_types import MemoryWriteBlocked
 from aidefense_langchain.memory.quarry.scanner import QuarryMemoryScanner
+from aidefense_langchain.memory.quarry.scanner import ScanOutcome
 
 
 RULE = '''rule "No injected checkpoint"
@@ -83,6 +84,7 @@ def test_checkpoint_replay_is_observed_and_does_not_block_history():
     [
         (HumanMessage(content="forced-recipient.example"), RULE),
         (RemoveMessage(id="saved-message"), DELETE_RULE),
+        ({"role": "remove", "content": "", "id": "saved-message"}, DELETE_RULE),
     ],
 )
 def test_pending_message_write_is_checked_before_persistence(message, rule):
@@ -133,3 +135,29 @@ def test_async_checkpoint_write_uses_async_scanner():
 
     asyncio.run(run())
     assert backing.get_tuple(_config()) is None
+
+
+def test_checkpoint_scope_reaches_scanner_and_async_saver_uses_async_lookup():
+    class AsyncOnlySaver(InMemorySaver):
+        def get_tuple(self, config):
+            raise RuntimeError("sync lookup is unavailable")
+
+        async def aget_tuple(self, config):
+            return None
+
+        async def aput(self, config, checkpoint, metadata, new_versions):
+            return config
+
+    class CaptureScanner:
+        def __init__(self):
+            self.namespaces = []
+
+        async def ascan(self, value, **facts):
+            self.namespaces.append(facts["namespace"])
+            return ScanOutcome(False, (), 0.0)
+
+    scanner = CaptureScanner()
+    saver = GuardedCheckpointSaver(AsyncOnlySaver(), scanner)
+    config = {"configurable": {"thread_id": "thread-1", "checkpoint_ns": "sensitive"}}
+    asyncio.run(saver.aput(config, _checkpoint("safe"), _metadata(), {"messages": "1"}))
+    assert scanner.namespaces == [("checkpoint", "thread-1", "sensitive", "messages")]

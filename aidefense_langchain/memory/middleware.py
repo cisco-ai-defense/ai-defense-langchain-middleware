@@ -153,7 +153,11 @@ class AIDefenseMemoryMiddleware(AgentMiddleware):
         state = request.state
         run = self._runs.get(state.get(_RUN_KEY) if isinstance(state, dict) else None)
         if run is not None:
-            run.verify_model_input(request.messages)
+            try:
+                run.verify_model_input(request.messages)
+            except MemoryTraceError:
+                if self.mode != "monitor":
+                    raise
         result = handler(request)
         if run is not None:
             run.record_model_output(result)
@@ -163,7 +167,11 @@ class AIDefenseMemoryMiddleware(AgentMiddleware):
         state = request.state
         run = self._runs.get(state.get(_RUN_KEY) if isinstance(state, dict) else None)
         if run is not None:
-            run.verify_model_input(request.messages)
+            try:
+                run.verify_model_input(request.messages)
+            except MemoryTraceError:
+                if self.mode != "monitor":
+                    raise
         result = await handler(request)
         if run is not None:
             run.record_model_output(result)
@@ -245,7 +253,7 @@ class AIDefenseMemoryMiddleware(AgentMiddleware):
                 return result
             except (MemoryWriteBlocked, MemoryInspectionFailed) as error:
                 reason = (
-                    "Memory write was blocked by policy; nothing was saved."
+                    "The attempted memory write was blocked by policy."
                     if isinstance(error, MemoryWriteBlocked)
                     else "Memory inspection failed; memory action did not complete."
                 )
@@ -272,7 +280,7 @@ class AIDefenseMemoryMiddleware(AgentMiddleware):
                 return result
             except (MemoryWriteBlocked, MemoryInspectionFailed) as error:
                 reason = (
-                    "Memory write was blocked by policy; nothing was saved."
+                    "The attempted memory write was blocked by policy."
                     if isinstance(error, MemoryWriteBlocked)
                     else "Memory inspection failed; memory action did not complete."
                 )

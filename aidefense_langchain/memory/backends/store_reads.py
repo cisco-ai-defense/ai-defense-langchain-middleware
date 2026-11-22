@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langgraph.store.base import GetOp, Item, ListNamespacesOp, Op, Result, SearchOp
+from langgraph.store.base import GetOp, Item, ListNamespacesOp, Op, Result, SearchItem, SearchOp
 
 from .provenance import MemoryOrigin, read_provenance, sidecar_key, snapshot_json
 from ..quarry.scanner import MemoryReadEvent, ScanOutcome
@@ -34,10 +34,13 @@ class StoreReadMixin:
 
     @staticmethod
     def _copy_item(item: Item) -> Item:
-        return Item(
+        fields = dict(
             value=snapshot_json(item.value), key=item.key, namespace=item.namespace,
             created_at=item.created_at, updated_at=item.updated_at,
         )
+        if isinstance(item, SearchItem):
+            return SearchItem(**fields, score=item.score)
+        return Item(**fields)
 
     def _release(self, item: Item, operation: str, origin: MemoryOrigin, writer: str,
                  provenance_status: str, outcome: ScanOutcome) -> None:
@@ -52,7 +55,7 @@ class StoreReadMixin:
         sink = current_read_sink()
         if sink is not None:
             sink(MemoryReadEvent(
-                value=item.value, namespace=item.namespace, key=item.key, writer_tool=writer,
+                value=snapshot_json(item.value), namespace=item.namespace, key=item.key, writer_tool=writer,
                 origin_kind=origin.kind, trust_level=origin.trust,
                 target_class=self._target_class(item.namespace, item.key),
                 reader_tool=current_tool(),

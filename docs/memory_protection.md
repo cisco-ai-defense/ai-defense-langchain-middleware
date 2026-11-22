@@ -7,7 +7,7 @@ memory rules.
 
 ## Installation
 
-Use Python 3.11 or newer. Quarry's declared-input API is in its public source
+Use Python 3.11–3.13 with the pinned Quarry commit. Its declared-input API is in its public source
 but is not yet in the 0.1.0 PyPI release. Until 0.1.1 is released:
 
 ```bash

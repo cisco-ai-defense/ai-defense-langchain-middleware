@@ -9,10 +9,10 @@ Each comparison uses the same real model and task. `send_report` only records a 
 
 ## Run
 
-Use Python 3.11 or newer. From the repository root:
+Use Python 3.11–3.13 with the pinned Quarry commit. This example uses Python 3.13. From the repository root:
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 # Temporary until the Quarry declared-input release is published (the memory
 # extra resolves against this installation):

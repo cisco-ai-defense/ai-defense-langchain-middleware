@@ -189,30 +189,35 @@ class GuardedChatMessageHistory(BaseChatMessageHistory):
 
     @property
     def messages(self) -> list[BaseMessage]:
+        if self.mode == "off":
+            return self.backing.messages
         copied = _detached_messages(self.backing.messages)
-        if self.mode != "off":
-            decisions = [
-                self._scan(_visible_message(message), "history_read", index, True)
-                for index, message in enumerate(copied)
-            ]
-            for decision in decisions:
-                self._emit(replace(decision, released=True))
+        decisions = [
+            self._scan(_visible_message(message), "history_read", index, True)
+            for index, message in enumerate(copied)
+        ]
+        for decision in decisions:
+            self._emit(replace(decision, released=True))
         return copied
 
     async def aget_messages(self) -> list[BaseMessage]:
+        if self.mode == "off":
+            return await self.backing.aget_messages()
         copied = _detached_messages(await self.backing.aget_messages())
-        if self.mode != "off":
-            decisions = [
-                await self._ascan(_visible_message(message), "history_read", index, True)
-                for index, message in enumerate(copied)
-            ]
-            for decision in decisions:
-                self._emit(replace(decision, released=True))
+        decisions = [
+            await self._ascan(_visible_message(message), "history_read", index, True)
+            for index, message in enumerate(copied)
+        ]
+        for decision in decisions:
+            self._emit(replace(decision, released=True))
         return copied
 
     def add_messages(self, messages: Sequence[BaseMessage]) -> None:
+        if self.mode == "off":
+            self.backing.add_messages(messages)
+            return
         copied = _detached_messages(messages)
-        decisions = [] if self.mode == "off" else [
+        decisions = [
             self._scan(_visible_message(message), "history_write", index, False)
             for index, message in enumerate(copied)
         ]
@@ -221,8 +226,11 @@ class GuardedChatMessageHistory(BaseChatMessageHistory):
             self._emit(replace(decision, committed=True))
 
     async def aadd_messages(self, messages: Sequence[BaseMessage]) -> None:
+        if self.mode == "off":
+            await self.backing.aadd_messages(messages)
+            return
         copied = _detached_messages(messages)
-        decisions = [] if self.mode == "off" else [
+        decisions = [
             await self._ascan(_visible_message(message), "history_write", index, False)
             for index, message in enumerate(copied)
         ]

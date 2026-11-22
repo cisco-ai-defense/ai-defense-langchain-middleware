@@ -31,7 +31,7 @@ recipient or claim the report was sent after a blocked tool call.
 
 def flow_rule_text() -> str:
     """Show the exact packaged rule selected by the strict profile."""
-    return files("aidefense_langchain.memory").joinpath("rules", "memory_to_tool.rule").read_text()
+    return files("aidefense_langchain.memory.quarry").joinpath("rules", "memory_to_tool.rule").read_text()
 
 
 @dataclass

@@ -56,7 +56,11 @@ for column, (title, detail) in zip(steps, [
 st.write("")
 model = st.text_input(
     "OpenAI model or Azure deployment",
-    value=os.getenv("OPENAI_MODEL") or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"),
+    value=(
+        os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        if os.getenv("OPENAI_API_KEY")
+        else os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+    ),
 )
 if not model_configured():
     st.info("Set OpenAI or Azure OpenAI credentials in the shell that starts Streamlit.")

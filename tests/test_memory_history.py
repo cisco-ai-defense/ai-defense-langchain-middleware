@@ -85,3 +85,12 @@ def test_middleware_history_helper_emits_shared_decision():
     assert decisions[0].operation == "history_write"
     assert decisions[0].namespace == ("chat_history", "thread-1")
     assert decisions[0].committed
+
+
+def test_off_history_delegates_large_message_lists():
+    backing = InMemoryChatMessageHistory()
+    history = GuardedChatMessageHistory(backing, "thread-1", None, mode="off")
+    messages = [HumanMessage(content="safe")] * 4097
+    history.add_messages(messages)
+    assert history.messages is backing.messages
+    assert len(asyncio.run(history.aget_messages())) == len(messages)

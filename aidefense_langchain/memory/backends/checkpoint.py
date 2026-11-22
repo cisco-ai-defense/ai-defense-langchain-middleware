@@ -124,7 +124,7 @@ class GuardedCheckpointSaver(_CheckpointInspection, BaseCheckpointSaver):
             raise ValueError("Checkpoint has no channel_values")
         decisions = []
         if self._mode != "off":
-            for part in self._new_items(config, list(channels.items())):
+            for part in await self._anew_items(config, list(channels.items())):
                 decisions.append(await self._ascan_one(config, part, read=False))
         result = await self._backing.aput(config, snapshot, metadata, new_versions)
         for decision in decisions:

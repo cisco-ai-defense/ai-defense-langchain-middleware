@@ -12,12 +12,15 @@ from threading import Lock
 from typing import Any, Sequence
 from uuid import uuid4
 
-from langchain.agents.middleware.types import ExtendedModelResponse, ModelResponse
+from langchain.agents.middleware import types as middleware_types
 from langchain.messages import AIMessage, ToolMessage
 from langgraph.types import Command
 
 from .backends.provenance import snapshot_json
-from .quarry.scanner import MemoryReadEvent
+from .quarry.inputs import EMAIL_PATTERN, MemoryReadEvent
+
+ModelResponse = middleware_types.ModelResponse
+ExtendedModelResponse = getattr(middleware_types, "ExtendedModelResponse", None)
 
 
 class MemoryTraceError(Exception):
@@ -25,7 +28,7 @@ class MemoryTraceError(Exception):
 
 
 def _model_calls(result: Any) -> list[dict[str, Any]]:
-    if isinstance(result, ExtendedModelResponse):
+    if ExtendedModelResponse is not None and isinstance(result, ExtendedModelResponse):
         result = result.model_response
     if isinstance(result, AIMessage):
         messages = [result]
@@ -47,8 +50,6 @@ def _tool_text(result: Any, call_id: str) -> str:
         result = messages[0]
     if not isinstance(result, ToolMessage) or result.tool_call_id != call_id:
         raise MemoryTraceError("Unsupported memory-reading tool result")
-    if result.status == "error":
-        return ""
     if isinstance(result.content, str):
         return result.content
     if isinstance(result.content, list) and all(
@@ -67,6 +68,25 @@ def _string_leaves(value: Any) -> list[str]:
     if isinstance(value, list):
         return [leaf for part in value for leaf in _string_leaves(part)]
     return []
+
+
+def _released_spans(leaves: Sequence[str], output: str) -> list[str]:
+    """Keep full copied leaves and exact recipient spans visible in tool text."""
+
+    spans: list[str] = []
+    for leaf in leaves:
+        if leaf in output:
+            spans.append(leaf)
+        elif output and output in leaf:
+            spans.append(output)
+    # A read tool commonly extracts an address from a longer memory field, or
+    # returns it in a sentence. Include only the address actually visible in
+    # its result, never the surrounding unreleased memory text.
+    for match in EMAIL_PATTERN.finditer(output):
+        address = match.group(0)
+        if any(address in leaf for leaf in leaves):
+            spans.append(address)
+    return list(dict.fromkeys(spans))
 
 
 class MemoryRun:
@@ -133,7 +153,7 @@ class MemoryRun:
                 if len(leaves) > 256:
                     self._invalid = True
                     return
-                copied = [leaf for leaf in leaves if leaf in output]
+                copied = _released_spans(leaves, output)
                 if not copied:
                     continue
                 value = {"released_text": "\n".join(copied)}
