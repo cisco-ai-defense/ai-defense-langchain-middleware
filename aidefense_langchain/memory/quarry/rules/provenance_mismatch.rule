@@ -1,0 +1,11 @@
+// A sidecar digest mismatch is observable, but never proves malicious content.
+rule "Memory provenance mismatch"
+metadata:
+    category = "memory_integrity"
+    severity = "medium"
+condition:
+    any event in memory.events where
+        (event.operation == "read" or event.operation == "get" or
+         event.operation == "search" or event.operation == "checkpoint_read" or
+         event.operation == "history_read") and
+        event.provenance_status == "mismatch"

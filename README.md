@@ -65,6 +65,34 @@ agent = create_agent(
 result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})
 ```
 
+## Memory protection with Quarry
+
+The optional [memory middleware](docs/memory_protection.md) scans LangGraph Store
+and checkpoint memory locally with open-source [Quarry](https://github.com/cisco-ai-defense/project-quarry)
+rules. It checks writes before persistence, observes reads, and can gate a
+configured local tool when an unverified memory value is copied into its arguments.
+No AI Defense API key or `/inspect` support is required for these extension rules.
+
+```python
+from aidefense_langchain.memory import AIDefenseMemoryMiddleware
+from langchain.agents import create_agent
+from langgraph.store.memory import InMemoryStore
+
+memory = AIDefenseMemoryMiddleware(profile="balanced")
+agent = create_agent(
+    model=model,
+    tools=tools,
+    store=memory.protect_store(InMemoryStore()),
+    middleware=[memory],
+)
+```
+
+The [live agent demo](examples/memory_poisoning_demo/README.md) and
+[step-by-step notebook](examples/memory_poisoning_demo/live_memory_demo.ipynb)
+show an unprotected memory poisoning attempt beside the guarded result. Quarry's newer
+declared-input API is currently available from its public source commit; see the
+[installation steps](docs/memory_protection.md#installation) until its next PyPI release.
+
 ## LLM Inspection
 
 ### `AIDefenseMiddleware` (Recommended)

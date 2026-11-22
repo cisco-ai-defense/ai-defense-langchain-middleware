@@ -1,0 +1,11 @@
+rule "Unverified write to protected memory"
+metadata:
+    category = "memory_integrity"
+    severity = "high"
+condition:
+    any event in memory.events where
+        event.target_class == "protected" and
+        (event.operation == "write" or event.operation == "delete" or
+         event.operation == "checkpoint_write" or event.operation == "checkpoint_delete" or
+         event.operation == "history_write") and
+        (event.trust_level == "untrusted" or event.trust_level == "unknown")

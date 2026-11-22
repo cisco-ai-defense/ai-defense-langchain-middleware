@@ -1,0 +1,14 @@
+rule "Memory future behavior instruction"
+metadata:
+    category = "persistence"
+    severity = "medium"
+strings:
+    $future = ["from now on", "in future conversations", "in all future chats", "for future requests", "next time you"] nocase
+    $agent = ["assistant", "agent", "you must", "you should"] nocase
+    $directive = ["must", "always", "never", "skip approval", "bypass review", "ignore instructions"] nocase
+condition:
+    any event in memory.events where
+        (event.trust_level == "untrusted" or event.trust_level == "unknown") and
+        event.content contains_any $future and
+        event.content contains_any $agent and
+        event.content contains_any $directive

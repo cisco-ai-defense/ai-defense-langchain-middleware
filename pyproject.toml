@@ -57,6 +57,9 @@ examples = [
     "langchain-openai",
     "python-dotenv",
 ]
+memory = [
+    "cisco-project-quarry>=0.1.1,<0.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware"
@@ -68,6 +71,10 @@ Changelog = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware
 [tool.setuptools.packages.find]
 include = ["aidefense_langchain*"]
 
+[tool.setuptools.package-data]
+"aidefense_langchain.memory.quarry" = ["rules/*.rule", "rules/profiles.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
