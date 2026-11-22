@@ -74,17 +74,22 @@ def _released_spans(leaves: Sequence[str], output: str) -> list[str]:
     """Keep full copied leaves and exact recipient spans visible in tool text."""
 
     spans: list[str] = []
+    output_addresses = {match.group(0) for match in EMAIL_PATTERN.finditer(output)}
     for leaf in leaves:
-        if leaf in output:
+        source_addresses = {match.group(0) for match in EMAIL_PATTERN.finditer(leaf)}
+        if leaf in output and source_addresses <= output_addresses:
             spans.append(leaf)
-        elif output and output in leaf:
+        elif output and output in leaf and output_addresses <= source_addresses:
             spans.append(output)
     # A read tool commonly extracts an address from a longer memory field, or
     # returns it in a sentence. Include only the address actually visible in
     # its result, never the surrounding unreleased memory text.
+    source_addresses = {
+        match.group(0) for leaf in leaves for match in EMAIL_PATTERN.finditer(leaf)
+    }
     for match in EMAIL_PATTERN.finditer(output):
         address = match.group(0)
-        if any(address in leaf for leaf in leaves):
+        if address in source_addresses:
             spans.append(address)
     return list(dict.fromkeys(spans))
 
