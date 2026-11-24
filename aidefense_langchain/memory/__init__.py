@@ -15,3 +15,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Optional LangChain memory protection backed by local Quarry rules."""
+
+from .middleware import AIDefenseMemoryMiddleware
+from .backends.checkpoint import GuardedCheckpointSaver
+from .backends.history import GuardedChatMessageHistory
+from .backends.provenance import memory_origin
+from .backends.store import GuardedMemoryStore
+from .backends.store_types import MemoryDecision, MemoryInspectionFailed, MemoryWriteBlocked
+from .events import MemoryMutation, MemoryRead
+
+__all__ = [
+    "AIDefenseMemoryMiddleware",
+    "GuardedCheckpointSaver",
+    "GuardedChatMessageHistory",
+    "GuardedMemoryStore",
+    "MemoryDecision",
+    "MemoryInspectionFailed",
+    "MemoryMutation",
+    "MemoryRead",
+    "MemoryWriteBlocked",
+    "memory_origin",
+]

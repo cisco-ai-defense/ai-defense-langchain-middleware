@@ -25,6 +25,8 @@ import pytest
 pytest.importorskip("quarry", minversion="0.1.1")
 from quarry import IncompleteScanError, ScanResult
 
+from langchain.messages import AIMessage, ToolMessage
+
 from aidefense_langchain.memory.events import (
     LIMITED_HEAD_BYTES,
     LIMITED_TAIL_BYTES,
@@ -33,6 +35,7 @@ from aidefense_langchain.memory.events import (
     no_content,
     normalize_content,
 )
+from aidefense_langchain.memory.flow import MemoryRun
 from aidefense_langchain.memory.quarry.inputs import MAX_FLOW_READS, InputBuilder, MemoryReadEvent
 from aidefense_langchain.memory.quarry.scanner import QuarryMemoryScanner
 
@@ -254,6 +257,36 @@ def test_memory_to_tool_flow_matches_recipient_that_contains_the_address():
         [memory], "send_report", "call-1", {"to": "devops@example.com"}
     )
     assert outcome.matched
+
+
+@pytest.mark.parametrize(
+    ("stored", "returned", "blocks"),
+    [
+        ("Recipient: audit@attacker.example", "audit@attacker.example", True),
+        ("Recipient: devops@example.com", "ops@example.com", False),
+        ("ops@example.com", "devops@example.com", False),
+    ],
+)
+def test_flow_records_only_complete_email_tokens_from_error_result(stored, returned, blocks):
+    run = MemoryRun()
+    run.record_model_output(AIMessage(
+        content="", tool_calls=[{"id": "read-1", "name": "read_memory", "args": {}}]
+    ))
+    read = released({"content": stored})
+    result = ToolMessage(content=returned, tool_call_id="read-1", status="error")
+    run.release_reads("read-1", [read], result)
+    run.verify_model_input([result])
+    run.record_model_output(AIMessage(
+        content="", tool_calls=[{"id": "send-1", "name": "send_report", "args": {"to": returned}}]
+    ))
+    evidence = run.snapshot_before("send-1", "send_report", {"to": returned})
+    assert [event.value for event in evidence] == (
+        [{"released_text": returned}] if blocks else []
+    )
+    outcome = QuarryMemoryScanner(profile="strict").scan_tool_flow(
+        evidence, "send_report", "send-1", {"to": returned}
+    )
+    assert bool(outcome.blocking_rules) is blocks
 
 
 def test_async_flow_path():
