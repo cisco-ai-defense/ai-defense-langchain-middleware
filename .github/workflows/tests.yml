@@ -23,5 +23,10 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      # Quarry needs Python 3.11+; on 3.10 the memory tests skip themselves.
+      - name: Install Quarry with declared inputs
+        if: matrix.python-version != '3.10'
+        run: pip install 'git+https://github.com/cisco-ai-defense/project-quarry.git@9c5db4aa7cf843e1e2a78bf973fe106a30d446a0'
+
       - name: Run tests
         run: pytest --cov=aidefense_langchain --cov-report=term-missing

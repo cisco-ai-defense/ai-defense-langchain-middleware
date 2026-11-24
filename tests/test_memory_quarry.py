@@ -380,3 +380,17 @@ def test_incomplete_quarry_result_is_never_a_clean_decision(monkeypatch):
     )
     with pytest.raises(IncompleteScanError):
         scanner.scan(write("ordinary note"))
+
+
+def test_quarry_without_declared_inputs_fails_with_a_clear_error(monkeypatch):
+    from dataclasses import dataclass
+
+    from aidefense_langchain.memory.quarry import scanner as scanner_module
+
+    @dataclass(frozen=True)
+    class OldQuarryConfig:
+        config_version: int = 1
+
+    monkeypatch.setattr(scanner_module, "QuarryConfig", OldQuarryConfig)
+    with pytest.raises(RuntimeError, match="declared inputs"):
+        QuarryMemoryScanner()

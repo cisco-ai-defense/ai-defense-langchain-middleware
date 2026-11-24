@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -48,6 +48,16 @@ _SAFETY_LIMITS = SafetyLimits(
     max_timeline_items=128,
     max_model_calls=4,
 )
+
+
+def _require_declared_inputs() -> None:
+    # Quarry 0.1.1 on PyPI predates declared inputs but shares its version number
+    # with later builds, so check the feature rather than the version.
+    if "inputs" not in {item.name for item in fields(QuarryConfig)}:
+        raise RuntimeError(
+            "Memory protection needs a Quarry build with declared inputs; the installed "
+            "cisco-project-quarry does not support them. See docs/memory_protection.md."
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +90,7 @@ class QuarryMemoryScanner:
         include_semantic_judge: bool = False,
         full_text_scan: bool = False,
     ) -> None:
+        _require_declared_inputs()
         if isinstance(rule_texts, str) or isinstance(tool_rule_texts, str):
             raise ValueError("Rule texts must be sequences of Quarry rule strings")
         texts, actions, flow_texts, flow_actions = profile_rules(profile)
