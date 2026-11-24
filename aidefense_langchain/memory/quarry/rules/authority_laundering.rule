@@ -1,0 +1,20 @@
+rule "Memory authority laundering"
+metadata:
+    category = "authority_spoofing"
+    severity = "high"
+strings:
+    $approval = ["supervisor approved", "manager approved", "security approved", "compliance approved", "approval granted", "policy now permits"] nocase
+    $policy = ["security policy", "safety policy", "compliance policy", "system instructions", "developer instructions"] nocase
+    $replacement = ["updated", "revised", "supersedes", "replaces", "override"] nocase
+    $bypass = ["skip approval", "skip review", "bypass review", "without approval", "disable verification", "disable logging", "send credentials", "send secrets", "bypass checks"] nocase
+condition:
+    (any e in memory.mutation_requested where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $bypass and
+        (e.content.text contains_any $approval or
+         (e.content.text contains_any $policy and e.content.text contains_any $replacement))) or
+    (any e in memory.read_returned where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $bypass and
+        (e.content.text contains_any $approval or
+         (e.content.text contains_any $policy and e.content.text contains_any $replacement)))

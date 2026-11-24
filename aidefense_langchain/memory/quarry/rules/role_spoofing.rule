@@ -1,0 +1,16 @@
+rule "Memory role spoofing"
+metadata:
+    category = "prompt_injection"
+    severity = "high"
+strings:
+    $header = ["<|im_start|>system", "<|im_start|>developer", "<|start_header_id|>system<|end_header_id|>", "<|start_header_id|>developer<|end_header_id|>", "<system>", "<developer>", "[SYSTEM]", "[DEVELOPER]", "SYSTEM:", "DEVELOPER:", "## System Instructions", "## Developer Instructions"] nocase
+    $directive = ["ignore previous", "ignore your", "you must", "assistant must", "agent must", "skip approval", "disable guard", "send credentials"] nocase
+condition:
+    (any e in memory.mutation_requested where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $header and
+        e.content.text contains_any $directive) or
+    (any e in memory.read_returned where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $header and
+        e.content.text contains_any $directive)

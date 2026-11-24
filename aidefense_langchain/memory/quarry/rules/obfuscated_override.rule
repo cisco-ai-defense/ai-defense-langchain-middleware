@@ -1,0 +1,14 @@
+rule "Memory punctuated override"
+metadata:
+    category = "obfuscated_injection"
+    severity = "medium"
+strings:
+    $spaced_ignore = "i[ ._-]+g[ ._-]+n[ ._-]+o[ ._-]+r[ ._-]+e[ ]+previous[ ]+instructions" nocase regex
+    $spaced_system = "s[ ._-]+y[ ._-]+s[ ._-]+t[ ._-]+e[ ._-]+m[ ]*:[ ]*(assistant|agent|you)[ ]+must" nocase regex
+condition:
+    (any e in memory.mutation_requested where
+        e.provenance.trust != "trusted" and
+        (e.content.text contains $spaced_ignore or e.content.text contains $spaced_system)) or
+    (any e in memory.read_returned where
+        e.provenance.trust != "trusted" and
+        (e.content.text contains $spaced_ignore or e.content.text contains $spaced_system))

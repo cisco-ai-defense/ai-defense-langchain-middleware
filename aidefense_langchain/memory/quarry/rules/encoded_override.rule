@@ -1,0 +1,15 @@
+rule "Memory encoded override marker"
+metadata:
+    category = "encoded_injection"
+    severity = "medium"
+strings:
+    $role = "<|im_start|>system" base64
+    $approval = "bypass approval" base64
+    $logging = "disable logging" base64
+condition:
+    (any e in memory.mutation_requested where
+        e.provenance.trust != "trusted" and
+        ($role in e.content.text or $approval in e.content.text or $logging in e.content.text)) or
+    (any e in memory.read_returned where
+        e.provenance.trust != "trusted" and
+        ($role in e.content.text or $approval in e.content.text or $logging in e.content.text))

@@ -1,0 +1,7 @@
+// A sidecar digest mismatch is observable, but never proves malicious content.
+rule "Memory provenance mismatch"
+metadata:
+    category = "memory_integrity"
+    severity = "medium"
+condition:
+    any e in memory.read_returned where e.provenance.status == "mismatch"

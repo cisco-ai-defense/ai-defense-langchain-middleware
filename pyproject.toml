@@ -68,6 +68,9 @@ Changelog = "https://github.com/cisco-ai-defense/ai-defense-langchain-middleware
 [tool.setuptools.packages.find]
 include = ["aidefense_langchain*"]
 
+[tool.setuptools.package-data]
+"aidefense_langchain.memory.quarry" = ["rules/*.rule", "rules/profiles.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
