@@ -36,6 +36,14 @@ def _verdict(result: SupportResult) -> str:
     return "⚠️ no refund issued"
 
 
+def _write_blocked(result: SupportResult) -> bool:
+    key = result.requested_change[0] if result.requested_change else None
+    return any(
+        d["operation"] == "write" and d["key"] == key and d["status"] == "block"
+        for d in result.decisions
+    )
+
+
 def _show(result: SupportResult) -> None:
     print(f"\n▶ {result.label}")
     if result.requested_change:
@@ -97,6 +105,11 @@ def main() -> int:
         for r, want in zip(tickets + refunds, expected)
         if want not in _verdict(r)
     ]
+    for result in tickets:
+        if "ingest_support_ticket" not in result.tool_calls:
+            misses.append(f"{result.label} (ticket never imported)")
+        elif result.guarded and result.requested_change and not _write_blocked(result):
+            misses.append(f"{result.label} (profile change not blocked)")
     if misses:
         print(
             f"\nUnexpected outcome (the model may have skipped a tool): {'; '.join(misses)}",
