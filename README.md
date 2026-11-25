@@ -91,7 +91,9 @@ agent = create_agent(
 
 The [live agent demo](examples/memory_poisoning_demo/README.md) and
 [step-by-step notebook](examples/memory_poisoning_demo/live_memory_demo.ipynb)
-show an unprotected memory poisoning attempt beside the guarded result. Quarry's
+show an unprotected memory poisoning attempt beside the guarded result. The
+[customer support refund demo](examples/support_refund_demo/README.md) shows a
+support ticket trying to redirect a refund; it can run offline. Quarry's
 declared-input API is not yet in a PyPI release; see the
 [installation steps](docs/memory_protection.md#installation).
 
