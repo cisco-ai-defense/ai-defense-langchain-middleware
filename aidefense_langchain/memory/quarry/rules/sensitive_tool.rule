@@ -1,0 +1,16 @@
+rule "Memory sensitive tool redirection"
+metadata:
+    category = "tool_redirection"
+    severity = "high"
+strings:
+    $tool = ["send_report", "send_email", "post_webhook", "http_post"] nocase
+    $action = "(send|forward|upload|post)[ ]+(the[ ]+|all[ ]+)?(credentials|secrets|api[ ]+key|access[ ]+token|private[ ]+data|customer[ ]+data)" nocase regex
+condition:
+    (any e in memory.mutation_requested where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $tool and
+        e.content.text contains $action) or
+    (any e in memory.read_returned where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $tool and
+        e.content.text contains $action)

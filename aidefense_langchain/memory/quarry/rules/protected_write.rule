@@ -1,0 +1,9 @@
+rule "Unverified write to protected memory"
+metadata:
+    category = "memory_integrity"
+    severity = "high"
+condition:
+    any e in memory.mutation_requested where
+        e.target_class == "protected" and
+        (e.operation == "write" or e.operation == "append" or e.operation == "delete") and
+        e.provenance.trust != "trusted"

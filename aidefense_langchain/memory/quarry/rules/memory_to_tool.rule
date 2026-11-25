@@ -1,0 +1,18 @@
+// The copied address is a substring match: a recipient that merely contains it also
+// matches. This shows memory content reached the call, not that memory caused it.
+// The window spans the longest flow: MAX_FLOW_READS (64) reads, the model
+// message, then the call. A smaller window misses early reads.
+rule "Unverified memory recipient used by send_report"
+metadata:
+    category = "memory_to_tool"
+    severity = "medium"
+strings:
+    $email = "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}" regex
+condition:
+    (any call in get_tool_calls("send_report") where
+        call.arguments.to contains addr)
+    after(within: 65)
+    (any r in memory.read_returned where
+        r.provenance.origin != "user" and r.provenance.origin != "system" and
+        r.provenance.trust != "trusted" and
+        $email in r.content.text as addr)

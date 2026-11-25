@@ -1,0 +1,19 @@
+rule "Memory future behavior instruction"
+metadata:
+    category = "persistence"
+    severity = "medium"
+strings:
+    $future = ["from now on", "in future conversations", "in all future chats", "for future requests", "next time you"] nocase
+    $agent = ["assistant", "agent", "you must", "you should"] nocase
+    $directive = ["must", "always", "never", "skip approval", "bypass review", "ignore instructions"] nocase
+condition:
+    (any e in memory.mutation_requested where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $future and
+        e.content.text contains_any $agent and
+        e.content.text contains_any $directive) or
+    (any e in memory.read_returned where
+        e.provenance.trust != "trusted" and
+        e.content.text contains_any $future and
+        e.content.text contains_any $agent and
+        e.content.text contains_any $directive)

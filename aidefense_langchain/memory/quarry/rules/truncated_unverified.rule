@@ -1,0 +1,14 @@
+// Limited mode skips the middle of long values, so padding could hide a payload there.
+rule "Shortened unverified memory content"
+metadata:
+    category = "memory_integrity"
+    severity = "low"
+condition:
+    (any e in memory.mutation_requested where
+        e.target_class != "protected" and
+        e.content.truncated == true and
+        e.provenance.trust != "trusted") or
+    (any e in memory.read_returned where
+        e.target_class != "protected" and
+        e.content.truncated == true and
+        e.provenance.trust != "trusted")

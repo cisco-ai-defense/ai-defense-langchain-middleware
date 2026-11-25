@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Local memory protection** (`aidefense_langchain.memory`, `memory` extra) —
+  `AIDefenseMemoryMiddleware` scans LangGraph Store, checkpointer, and LangChain
+  chat-history memory with local Quarry rules. Writes are checked before
+  persistence, reads are observed, and gated tools are checked for unverified
+  memory copied into their arguments. Memory operations are described as v1
+  memory events (`MemoryMutation`, `MemoryRead`). Needs Python 3.11+ and a
+  Quarry build with declared inputs; see `docs/memory_protection.md`.
+
 ## [1.1.1] - 2026-07-07
 
 ### Changed
